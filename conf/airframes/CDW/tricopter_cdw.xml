@@ -1,16 +1,37 @@
 <!DOCTYPE airframe SYSTEM "../airframe.dtd">
 
+<!--
+
+http://www.robbe.de/roxxy-bl-outrunner-2827-34.html
+
+Technische Daten
+
+Abmessungen: Ø 28 x 29 mm
+Freie Wellenlänge: 12.5 mm
+Gewicht ca.: 57 g
+Laststrom (5min/120°C): 9 A
+Umdrehung / Volt: 760 Umin/V
+Max.Wirkungsgrad: 76 %
+Laststrom max. (60 Sek.): 10 A
+Zellenzahl: 6-10 NC/NiMH
+Leistung: 110 W
+Wellendurchmesser: 3.17 mm
+Spannung: 7-12 Volt
+LiPo/LiIo-Zellen: 2-3
+
+-->
+
 <airframe name="BOOZ2_a1">
 
-  <section name="ACTUATORS_MKK" prefix="ACTUATORS_MKK2_">
+  <section name="ACTUATORS_MKK_V2" prefix="ACTUATORS_MKK_V2_">
     <define name="NB" value="3"/>
     <define name="ADDR" value="{ 0x52, 0x56, 0x54 }"/>
   </section>
 
- <servos driver="Mkk2">
-   <servo name="FRONTRIGHT" no="0" min="0" neutral="6" max="2000"/>
-   <servo name="FRONTLEFT" no="1" min="0" neutral="6" max="2000"/>
-   <servo name="BACK" no="2" min="0" neutral="6" max="2000"/>
+ <servos driver="Mkk_v2">
+   <servo name="FRONTRIGHT" no="0" min="0" neutral="30" max="2047"/>
+   <servo name="FRONTLEFT" no="1" min="0" neutral="30" max="2047"/>
+   <servo name="BACK" no="2" min="0" neutral="30" max="2047"/>
  </servos>
 
   <servos driver="Pwm">
@@ -29,11 +50,11 @@
     <define name="TRIM_PITCH" value="0"/>
     <define name="TRIM_YAW" value="0"/>
     <define name="NB_MOTOR" value="3"/>
-    <define name="SCALE" value="256"/>
-    <define name="ROLL_COEF" value="{  256, -256,    0}"/>
-    <define name="PITCH_COEF" value="{  128,  128, -256}"/>
+    <define name="SCALE" value="2048"/>
+    <define name="ROLL_COEF" value="{  2048, -2048,    0}"/>
+    <define name="PITCH_COEF" value="{  1024,  1024, -2048}"/>
     <define name="YAW_COEF" value="{    0,    0,    0}"/>
-    <define name="THRUST_COEF" value="{ 256,  256,  256}"/>
+    <define name="THRUST_COEF" value="{ 2048,  2048,  2048}"/>
   </section>
 
   <command_laws>
@@ -76,7 +97,7 @@
     <!-- setpoints -->
     <define name="SP_MAX_PHI" value="45." unit="deg"/>
     <define name="SP_MAX_THETA" value="45." unit="deg"/>
-    <define name="SP_MAX_R" value="90." unit="deg/s"/>
+    <define name="SP_MAX_R" value="180." unit="deg/s"/>
     <define name="DEADBAND_R" value="250"/>
 
     <!-- reference -->
@@ -97,15 +118,15 @@
 
     <!-- feedback -->
     <define name="PHI_PGAIN" value="400"/>
-    <define name="PHI_DGAIN" value="410."/>
+    <define name="PHI_DGAIN" value="410"/>
     <define name="PHI_IGAIN" value="0"/>
 
     <define name="THETA_PGAIN" value="400"/>
-    <define name="THETA_DGAIN" value="410."/>
-    <define name="THETA_IGAIN" value="114."/>
+    <define name="THETA_DGAIN" value="410"/>
+    <define name="THETA_IGAIN" value="114"/>
 
-    <define name="PSI_PGAIN" value="600"/>
-    <define name="PSI_DGAIN" value="1328."/>
+    <define name="PSI_PGAIN" value="700"/>
+    <define name="PSI_DGAIN" value="1328"/>
     <define name="PSI_IGAIN" value="0"/>
 
     <!-- feedforward -->
@@ -169,7 +190,7 @@
  </section>
 
   <modules>
-    <load name="configure_actuators_mkk.xml"/>
+    <load name="configure_actuators_mkk_v2.xml"/>
   </modules>
 
   <firmware name="rotorcraft">
@@ -183,7 +204,7 @@
     <subsystem name="radio_control" type="ppm"/>
     <subsystem name="telemetry" type="xbee_api"/>
     <subsystem name="motor_mixing"/>
-    <subsystem name="actuators" type="mkk2"/>
+    <subsystem name="actuators" type="mkk_v2"/>
     <subsystem name="actuators" type="pwm">
       <define name="USE_PWM0"/>
     </subsystem>
