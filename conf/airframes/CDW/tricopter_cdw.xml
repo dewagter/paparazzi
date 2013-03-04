@@ -97,7 +97,7 @@ LiPo/LiIo-Zellen: 2-3
     <!-- setpoints -->
     <define name="SP_MAX_PHI" value="45." unit="deg"/>
     <define name="SP_MAX_THETA" value="45." unit="deg"/>
-    <define name="SP_MAX_R" value="180." unit="deg/s"/>
+    <define name="SP_MAX_R" value="120." unit="deg/s"/>
     <define name="DEADBAND_R" value="250"/>
 
     <!-- reference -->
@@ -113,8 +113,8 @@ LiPo/LiIo-Zellen: 2-3
 
     <define name="REF_OMEGA_R" value="500" unit="deg/s"/>
     <define name="REF_ZETA_R" value="0.9"/>
-    <define name="REF_MAX_R" value="180." unit="deg/s"/>
-    <define name="REF_MAX_RDOT" value="RadOfDeg(1800.)"/>
+    <define name="REF_MAX_R" value="110." unit="deg/s"/>
+    <define name="REF_MAX_RDOT" value="RadOfDeg(400.)"/>
 
     <!-- feedback -->
     <define name="PHI_PGAIN" value="400"/>
@@ -191,6 +191,7 @@ LiPo/LiIo-Zellen: 2-3
 
   <modules>
     <load name="configure_actuators_mkk_v2.xml"/>
+    <load name="imu_quality_assessment.xml"/>
   </modules>
 
   <firmware name="rotorcraft">
