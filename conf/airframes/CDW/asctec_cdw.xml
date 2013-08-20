@@ -181,7 +181,7 @@
  </section>
 
  <modules main_freq="512">
-   <load name="high_speed_logger_spi_link.xml"/>
+<!--   <load name="high_speed_logger_spi_link.xml"/> -->
    <load name="imu_quality_assessment.xml"/>
  </modules>
 
@@ -196,7 +196,7 @@
       <define name="USE_KILL_SWITCH_FOR_MOTOR_ARMING" value="1" />
       <define name="USE_I2C_ACTUATORS_REBOOT_HACK"/>
     </target>
-    <target name="sim" board="pc">
+    <target name="nps" board="pc">
       <subsystem name="fdm"           type="jsbsim"/>
       <subsystem name="radio_control" type="ppm"/>
       <subsystem name="motor_mixing"/>
@@ -205,7 +205,7 @@
 
     <subsystem name="imu"           type="aspirin_v2.1"/>
     <subsystem name="gps"           type="ublox"/>
-    <subsystem name="stabilization" type="euler"/>
+    <subsystem name="stabilization" type="int_euler"/>
     <subsystem name="ahrs"          type="int_cmpl_quat"/>
     <subsystem name="ins"           type="hff"/>
   </firmware>
