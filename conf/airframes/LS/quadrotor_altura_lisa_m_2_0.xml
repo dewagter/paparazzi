@@ -34,6 +34,9 @@
 
   <modules>
     <load name="gps_ubx_ucenter.xml"/>
+    <load name="air_data.xml">
+      <define name="AIR_DATA_CALC_AMSL_BARO" value="TRUE" />
+    </load>
   </modules>
 
   <servos driver="Pwm">
