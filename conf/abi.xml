@@ -20,6 +20,10 @@
       <field name="temp" type="float" unit="deg Celcius"/>
     </message>
 
+    <message name="GROUND_DETECT" id="4">
+      <field name="ground_detected" type="bool"/>
+    </message>
+
   </msg_class>
 
 

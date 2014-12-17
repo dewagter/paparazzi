@@ -50,6 +50,19 @@
 #include "mcu_periph/gpio.h"
 #endif
 
+#include "subsystems/abi.h"
+abi_event ev;
+
+void data_cb(uint8_t sender_id, const bool * ground_detected) {
+  if (sender_id == 1) {
+    if (*ground_detected) {
+      autopilot_ground_detected_ABI = TRUE;
+    } else {
+      autopilot_ground_detected_ABI = FALSE;
+    }
+  }
+}
+
 uint8_t  autopilot_mode;
 uint8_t  autopilot_mode_auto2;
 
@@ -65,6 +78,7 @@ bool_t   autopilot_power_switch;
 
 bool_t   autopilot_ground_detected;
 bool_t   autopilot_detect_ground_once;
+bool_t	 autopilot_ground_detected_ABI;
 
 /** time steps for in_flight detection (at 20Hz, so 20=1second) */
 #ifndef AUTOPILOT_IN_FLIGHT_TIME
@@ -242,6 +256,8 @@ static void send_rotorcraft_cmd(struct transport_tx *trans, struct link_device *
 
 
 void autopilot_init(void) {
+  AbiBindMsgGROUND_DETECT(ABI_BROADCAST, &ev, data_cb);
+
   /* mode is finally set at end of init if MODE_STARTUP is not KILL */
   autopilot_mode = AP_MODE_KILL;
   autopilot_motors_on = FALSE;
@@ -251,6 +267,7 @@ void autopilot_init(void) {
   autopilot_mode_auto2 = MODE_AUTO2;
   autopilot_ground_detected = FALSE;
   autopilot_detect_ground_once = FALSE;
+  autopilot_ground_detected_ABI = FALSE;
   autopilot_flight_time = 0;
   autopilot_rc = TRUE;
   autopilot_power_switch = FALSE;

@@ -1,0 +1,20 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="ground_detection_switch" dir="sensors">
+  <doc>
+    <description>GPIO ground detection switch to be run on 512Hz</description>
+    <configure name="GPIO_PORT" value="PORTX" description="General purpose input-output (GPIO) port number"/>
+    <configure name="GPIO_CHANNEL" value="CHANNELX" description="GPIO channel"/>
+  </doc>
+  <header>
+    <file name="ground_detection_switch.h"/>
+  </header>
+  <init fun="ground_detection_switch_init()"/>
+  <periodic fun="ground_detection_switch_periodic()" freq="512"/>
+  <makefile target="ap">
+    <file name="ground_detection_switch.c"/>
+    <raw>
+    </raw>
+  </makefile>
+</module>
+
