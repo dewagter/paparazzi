@@ -148,6 +148,14 @@ extern uint16_t autopilot_flight_time;
 /** Ground detection based on vertical acceleration.
  */
 static inline void DetectGroundEvent(void) {
+#ifdef KILL_ON_SWITCH_GROUND_DETECT
+  if (autopilot_ground_detected_ABI && autopilot_detect_ground_once) {
+    autopilot_ground_detected = TRUE;
+    autopilot_detect_ground_once = FALSE;
+  } else {
+    autopilot_ground_detected = FALSE;
+  }
+#else
   if (autopilot_mode == AP_MODE_FAILSAFE || autopilot_detect_ground_once) {
     struct NedCoor_f* accel = stateGetAccelNed_f();
     if (accel->z < -THRESHOLD_GROUND_DETECT ||
@@ -156,6 +164,7 @@ static inline void DetectGroundEvent(void) {
       autopilot_detect_ground_once = FALSE;
     }
   }
+#endif
 }
 
 #include "subsystems/settings.h"
