@@ -68,6 +68,7 @@ extern void autopilot_set_motors_on(bool_t motors_on);
 extern void autopilot_check_in_flight(bool_t motors_on);
 
 extern bool_t autopilot_ground_detected;
+extern bool_t autopilot_ground_detected_ABI;
 extern bool_t autopilot_detect_ground_once;
 
 extern uint16_t autopilot_flight_time;

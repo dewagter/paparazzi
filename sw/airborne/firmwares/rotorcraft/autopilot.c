@@ -53,6 +53,7 @@
 #include "subsystems/abi.h"
 abi_event ev;
 
+void data_cb(uint8_t sender_id, const bool * ground_detected);
 void data_cb(uint8_t sender_id, const bool * ground_detected) {
   if (sender_id == 1) {
     if (*ground_detected) {
