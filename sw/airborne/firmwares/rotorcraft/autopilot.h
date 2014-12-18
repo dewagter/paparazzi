@@ -141,31 +141,32 @@ extern uint16_t autopilot_flight_time;
 }
 #endif
 
-/** Z-acceleration threshold to detect ground in m/s^2 */
-#ifndef THRESHOLD_GROUND_DETECT
-#define THRESHOLD_GROUND_DETECT 25.0
-#endif
-/** Ground detection based on vertical acceleration.
- */
-static inline void DetectGroundEvent(void) {
+void data_cb(uint8_t sender_id, const bool * ground_detected);
+
 #ifdef KILL_ON_SWITCH_GROUND_DETECT
-  if (autopilot_ground_detected_ABI && autopilot_detect_ground_once) {
-    autopilot_ground_detected = TRUE;
-    autopilot_detect_ground_once = FALSE;
-  } else {
-    autopilot_ground_detected = FALSE;
+  static inline void DetectGroundEvent(void) {
+    if (autopilot_detect_ground_once && autopilot_ground_detected_ABI) {
+      autopilot_ground_detected = TRUE;
+    }
   }
 #else
-  if (autopilot_mode == AP_MODE_FAILSAFE || autopilot_detect_ground_once) {
-    struct NedCoor_f* accel = stateGetAccelNed_f();
-    if (accel->z < -THRESHOLD_GROUND_DETECT ||
-        accel->z > THRESHOLD_GROUND_DETECT) {
-      autopilot_ground_detected = TRUE;
-      autopilot_detect_ground_once = FALSE;
+  /** Z-acceleration threshold to detect ground in m/s^2 */
+  #ifndef THRESHOLD_GROUND_DETECT
+  #define THRESHOLD_GROUND_DETECT 25.0
+  #endif
+  /** Ground detection based on vertical acceleration.
+  */
+  static inline void DetectGroundEvent(void) {
+    if (autopilot_mode == AP_MODE_FAILSAFE || autopilot_detect_ground_once) {
+      struct NedCoor_f* accel = stateGetAccelNed_f();
+      if (accel->z < -THRESHOLD_GROUND_DETECT ||
+          accel->z > THRESHOLD_GROUND_DETECT) {
+        autopilot_ground_detected = TRUE;
+        autopilot_detect_ground_once = FALSE;
+      }
     }
   }
 #endif
-}
 
 #include "subsystems/settings.h"
 

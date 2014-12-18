@@ -1,7 +1,7 @@
 <!DOCTYPE airframe SYSTEM "../airframe.dtd">
 
 <!-- this is a quadrotor frame in X-configuration equiped with
-     * Autopilot:   Lisa-m 
+     * Autopilot:   Lisa-m
      * Actuators:   HobbyKing Avro Slim 20A
      * GPS:         Ublox                  http://wiki.paparazziuav.org/wiki/Subsystem/gps
      * RC:          one Spektrum sat       http://wiki.paparazziuav.org/wiki/Subsystem/radio_control#Spektrum
@@ -48,6 +48,7 @@
     <load name="air_data.xml">
       <define name="AIR_DATA_CALC_AMSL_BARO" value="TRUE" />
     </load>
+    <load name="ground_detection_switch.xml" />
   </modules>
 
   <servos driver="Pwm">

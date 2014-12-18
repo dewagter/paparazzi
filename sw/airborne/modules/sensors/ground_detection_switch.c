@@ -41,7 +41,7 @@ void ground_detection_switch_periodic( void ) {
   if (gpio_val == GPIO_LOW) {
     counter++;
     if (counter >= COUNTER_THRESHOLD) {
-      ground_detect = TRUE;  
+      ground_detect = TRUE;
     }
   } else {
     counter = 0;

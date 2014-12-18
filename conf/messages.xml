@@ -1906,6 +1906,11 @@
   </message>
 
   <!--216 is free -->
+  <message name="GROUND_DETECTION_DEBUG" id="216">
+    <field name="autopilot_ground_detected_ABI" type="uint8"/>
+    <field name="autopilot_ground_detected" type="uint8"/>
+  </message>
+
   <!--217 is free -->
 
   <message name="BEBOP_ACTUATORS" id="218">
