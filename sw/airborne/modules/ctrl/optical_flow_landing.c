@@ -33,6 +33,17 @@
  *
  */
 
+//#if PRINT_DEBUG_LANDING
+//#include <stdio.h>
+//#define DEBUG_PRINT(...) printf(__VA_ARGS__)
+//#else
+#define DEBUG_PRINT(...) {}
+//#endif
+
+#include "optical_flow_landing.h"
+
+
+#include "modules/computer_vision/textons.h"
 
 #define TEXTONS_FROM_STEREO 1
 
@@ -41,6 +52,32 @@ float divergence;
 float divergence_vision;
 float divergence_vision_dt;
 float normalized_thrust;
+
+
+
+// variables for in message:
+float pstate;
+float pused;
+int vision_message_nr;
+int previous_message_nr;
+int landing;
+float previous_err;
+float previous_cov_err;
+float cov_div;
+
+
+// arrays containing histories for determining covariance
+float thrust_history[COV_WINDOW_SIZE];
+float divergence_history[COV_WINDOW_SIZE];
+float past_divergence_history[COV_WINDOW_SIZE];
+unsigned long ind_hist;
+// SSL:
+float *text_dists[MAX_SAMPLES_LEARNING];
+float sonar[MAX_SAMPLES_LEARNING];
+float gains[MAX_SAMPLES_LEARNING];
+float cov_divs_log[MAX_SAMPLES_LEARNING];
+float weights[TEXTONS_N_TEXTONS+1];
+
 
 // minimum value of the P-gain for divergence control
 // adaptive control will not be able to go lower
@@ -57,8 +94,8 @@ float normalized_thrust;
 #include "subsystems/datalink/telemetry.h"
 
 // used for calculating velocity from height measurements:
-#include <time.h>
-long previous_time;
+#include "mcu_periph/sys_time.h"
+float previous_time_of_landing;
 
 // sending the divergence message to the ground station:
 static void send_divergence(struct transport_tx *trans, struct link_device *dev)
@@ -80,16 +117,15 @@ static void send_divergence(struct transport_tx *trans, struct link_device *dev)
 // ************************
 // include textons for SSL:
 // ************************
-#include <stdio.h>
-#include "modules/computer_vision/textons.h"
-float* last_texton_distribution; // used to check if a new texton distribution has been received
+//#include <stdio.h>
+float last_texton_distribution[TEXTONS_N_TEXTONS]; // used to check if a new texton distribution has been received
 // TODO: last_texton_distribution's size depends on the number of textons in textons.h/c.
 // it should now be set to 10 to match the number of textons on the stereoboard... this is extremely ugly.
 #define n_ts 10
 float texton_distribution_stereoboard[n_ts];
-#define TEXTON_DISTRIBUTION_PATH /data/ftp/internal000
-static FILE *distribution_logger = NULL;
-static FILE *weights_file = NULL;
+//#define TEXTON_DISTRIBUTION_PATH /data/ftp/internal000
+//static FILE *distribution_logger = NULL;
+//static FILE *weights_file = NULL;
 unsigned int n_read_samples;
 // paparazzi files for doing svd etc.:
 #include "math/pprz_algebra_float.h"
@@ -147,9 +183,9 @@ static abi_event textons_ev;
 /// Callback function of the ground altitude
 static void vertical_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance);
 // Callback function of the optical flow estimate:
-static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, uint8_t quality, float size_divergence, float dist);
+static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp __attribute__((unused)), int16_t flow_x __attribute__((unused)), int16_t flow_y __attribute__((unused)), int16_t flow_der_x __attribute__((unused)), int16_t flow_der_y __attribute__((unused)), uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)));
 // Callback function of the texton histogram from the stereoboard:
-static void vertical_ctrl_textons_cb(uint8_t sender_id, uint8_t histogram0, uint8_t histogram1, uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5, 
+static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1, uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5,
                                      uint8_t histogram6, uint8_t histogram7, uint8_t histogram8, uint8_t histogram9);
 
 struct OpticalFlowLanding of_landing_ctrl;
@@ -190,10 +226,10 @@ void vertical_ctrl_module_init(void)
   of_landing_ctrl.use_bias = false;
   of_landing_ctrl.snapshot = false;
   
-  struct timespec spec;
-  clock_gettime(CLOCK_REALTIME, &spec);
-  previous_time = spec.tv_nsec / 1.0E6;
-  //previous_time = time(NULL);
+  //struct timespec spec;
+  //clock_gettime(CLOCK_REALTIME, &spec);
+  previous_time_of_landing = get_sys_time_float();
+  //previous_time_of_landing = time(NULL);
 
   // clear histories:
   ind_hist = 0;
@@ -220,13 +256,13 @@ void vertical_ctrl_module_init(void)
 
   // SSL:
   // TODO: not freed!
-  last_texton_distribution = (float *)calloc(n_textons,sizeof(float));
-  for(i = 0; i < n_textons; i++)
+  //last_texton_distribution = (float *)calloc(n_textons,sizeof(float));
+  for(i = 0; i < TEXTONS_N_TEXTONS; i++)
   {
     last_texton_distribution[i] = 0.0f;
   }
-  weights = (float *)calloc(n_textons+1,sizeof(float));
-  for(i = 0; i <= n_textons; i++)
+  //weights = (float *)calloc(n_textons+1,sizeof(float));
+  for(i = 0; i <= TEXTONS_N_TEXTONS; i++)
   {
     weights[i] = 0.0f;
   }
@@ -259,9 +295,9 @@ void reset_all_vars()
   previous_err = 0.0f;
   previous_cov_err = 0.0f;
   divergence = of_landing_ctrl.divergence_setpoint;
-  struct timespec spec;
-  clock_gettime(CLOCK_REALTIME, &spec);
-  previous_time = spec.tv_nsec / 1.0E6;
+  //struct timespec spec;
+  //clock_gettime(CLOCK_REALTIME, &spec);
+  previous_time_of_landing = get_sys_time_float();
   vision_message_nr = 1;
   previous_message_nr = 0;
   for (i = 0; i < COV_WINDOW_SIZE; i++) {
@@ -271,7 +307,7 @@ void reset_all_vars()
   landing = 0;
 
   // SSL:
-  for(i = 0; i < n_textons; i++)
+  for(i = 0; i < TEXTONS_N_TEXTONS; i++)
   {
     last_texton_distribution[i] = 0.0f;
   }
@@ -291,25 +327,28 @@ void vertical_ctrl_module_run(bool in_flight)
   if (dt < 0) { dt = 0.0f; }
 
   // get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
-  struct timespec spec;
-  clock_gettime(CLOCK_REALTIME, &spec);
-  long new_time = spec.tv_nsec / 1.0E6;
-  long delta_t = new_time - previous_time;
-  dt += ((float)delta_t) / 1000.0f;
+  //struct timespec spec;
+  //clock_gettime(CLOCK_REALTIME, &spec);
+  float new_time = get_sys_time_float();
+  float delta_t = new_time - previous_time_of_landing;
+  dt += ((float)delta_t);// / 1000.0f;
   if (dt > 10.0f) {
     dt = 0.0f;
     return;
   }
-  previous_time = new_time;
+  previous_time_of_landing = new_time;
 
   if (!in_flight) {
 
     
     // SSL: only learn if not flying - due to use of resources:
     if(of_landing_ctrl.learn_gains) {
-      printf("STARTING LEARNING!\n");
+      DEBUG_PRINT("STARTING LEARNING!\n");
       // learn the weights from the file filled with training examples:
-      learn_from_file();
+
+
+      ////////// CDW REMOVED
+      //learn_from_file();
       // reset the learn_gains variable to false:
       of_landing_ctrl.learn_gains = false;
     }
@@ -321,22 +360,22 @@ void vertical_ctrl_module_run(bool in_flight)
 
     // TODO: just for debugging, remove:
     if(TEXTONS_FROM_STEREO) {
-      printf("\nTextons: ");
-      for(i = 0; i < n_textons; i++)
+      DEBUG_PRINT("\nTextons: ");
+      for(i = 0; i < TEXTONS_N_TEXTONS; i++)
       { 
-        printf("%f ", texton_distribution_stereoboard[i]);
+        DEBUG_PRINT("%f ", texton_distribution_stereoboard[i]);
       }
     }
     /*
     // TODO: remove, just for testing:
     // of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
-    // printf("Sonar height = %f\n", of_landing_ctrl.agl);
+    // DEBUG_PRINT("Sonar height = %f\n", of_landing_ctrl.agl);
     if(weights[n_textons] == 0.0f) {
       save_texton_distribution();
     }
     else
     {
-      printf("Predicted gain = %f\n", predict_gain(texton_distribution));
+      DEBUG_PRINT("Predicted gain = %f\n", predict_gain(texton_distribution));
     }
     */
 
@@ -495,7 +534,11 @@ void vertical_ctrl_module_run(bool in_flight)
             // TODO: watch out, if the texton distribution is the same as the previous one, it will not be saved - and indices of images and the training set will not coincide...
             // video_thread_take_shot(true); // now defined differently...
           }
-          save_texton_distribution();
+
+
+
+          ////////// CDW REMOVED
+          //save_texton_distribution();
         }
 
         // adapt the gain:
@@ -561,7 +604,7 @@ void vertical_ctrl_module_run(bool in_flight)
         // make sure pused does not become too small, nor grows too fast:
         if (of_landing_ctrl.pgain < MINIMUM_GAIN) { of_landing_ctrl.pgain = MINIMUM_GAIN; }
         
-        printf("of_landing_ctrl.pgain = %f\n", of_landing_ctrl.pgain);
+        DEBUG_PRINT("of_landing_ctrl.pgain = %f\n", of_landing_ctrl.pgain);
 
         // use the divergence for control:
         float err = of_landing_ctrl.divergence_setpoint - divergence;
@@ -616,7 +659,7 @@ float get_mean_array(float *a, int n_elements)
 {
   // determine the mean for the vector:
   float mean = 0;
-  for (unsigned int i = 0; i < n_elements; i++) {
+  for ( int i = 0; i < n_elements; i++) {
     mean += a[i];
   }
   mean /= n_elements;
@@ -639,7 +682,7 @@ float get_cov(float *a, float *b, int n_elements)
 
   // Determine the covariance:
   float cov = 0;
-  for (unsigned int i = 0; i < n_elements; i++) {
+  for ( int i = 0; i < n_elements; i++) {
     cov += (a[i] - mean_a) * (b[i] - mean_b);
   }
 
@@ -651,20 +694,20 @@ float get_cov(float *a, float *b, int n_elements)
 
 
 // Reading from sonar:
-static void vertical_ctrl_agl_cb(uint8_t sender_id, float distance)
+static void vertical_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance)
 {
   // value from the sonar - normally, this is replaced by the optitrack value in the main loop.
   of_landing_ctrl.agl = distance;
 }
 // Getting information from optical flow:
-static void vertical_ctrl_optical_flow_cb(uint8_t sender_id, uint32_t stamp, int16_t flow_x, int16_t flow_y, int16_t flow_der_x, int16_t flow_der_y, uint8_t quality, float size_divergence, float dist)
+static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp __attribute__((unused)), int16_t flow_x __attribute__((unused)), int16_t flow_y __attribute__((unused)), int16_t flow_der_x __attribute__((unused)), int16_t flow_der_y __attribute__((unused)), uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)))
 {
   divergence_vision = size_divergence;
   vision_message_nr++;
   if (vision_message_nr > 10) { vision_message_nr = 0; }
 }
 // Getting textons:
-static void vertical_ctrl_textons_cb(uint8_t sender_id, uint8_t histogram0, uint8_t histogram1, uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5, 
+static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1, uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5,
                                      uint8_t histogram6, uint8_t histogram7, uint8_t histogram8, uint8_t histogram9)
 {
   int i;
@@ -713,9 +756,9 @@ void guidance_v_module_enter(void)
   normalized_thrust = 0.0f;
   divergence = of_landing_ctrl.divergence_setpoint;
   dt = 0.0f;
-  struct timespec spec;
-  clock_gettime(CLOCK_REALTIME, &spec);
-  previous_time = spec.tv_nsec / 1.0E6;
+  //struct timespec spec;
+  //clock_gettime(CLOCK_REALTIME, &spec);
+  previous_time_of_landing = get_sys_time_float(); //spec.tv_nsec / 1.0E6;
   vision_message_nr = 1;
   previous_message_nr = 0;
   for (i = 0; i < COV_WINDOW_SIZE; i++) {
@@ -729,6 +772,7 @@ void guidance_v_module_run(bool in_flight)
   vertical_ctrl_module_run(in_flight);
 }
 
+/*
 void save_texton_distribution(void)
 {
   // Since the control module runs faster than the texton vision process, we need to check that we are storing a recent vision result:
@@ -759,16 +803,16 @@ void save_texton_distribution(void)
     }
   }
   // don't save the texton distribution if it is the same as previous time step:
-  /*if(same)
-  {
-    printf("Same\n");
-    return;
-  }*/
+  //if(same)
+  //{
+  //  DEBUG_PRINT("Same\n");
+  //  return;
+  //}
 
   // TODO: if(!same)?
   // If not the same, append the target values (heights, gains) and texton values to a .dat file:
   char filename[512];
-	sprintf(filename, "%s/Training_set_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
+	sDEBUG_PRINT(filename, "%s/Training_set_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
   distribution_logger = fopen(filename, "a");
 	if(distribution_logger == NULL)
 	{
@@ -777,7 +821,7 @@ void save_texton_distribution(void)
 	}
 	else
 	{
-    printf("Logging at height %f, gain %f, cov_div %f\n", of_landing_ctrl.agl, pstate, cov_div);
+    DEBUG_PRINT("Logging at height %f, gain %f, cov_div %f\n", of_landing_ctrl.agl, pstate, cov_div);
 
     // save the information in a single row:
     fprintf(distribution_logger, "%f ", of_landing_ctrl.agl); // sonar measurement
@@ -800,7 +844,9 @@ void save_texton_distribution(void)
     fclose(distribution_logger);
   }
 }
+*/
 
+/*
 void load_texton_distribution(void)
 {
   int i, j, read_result;
@@ -816,7 +862,7 @@ void load_texton_distribution(void)
     {
       read_result = fscanf(distribution_logger, "%f ", &sonar[n_read_samples]);
 			if(read_result == EOF) break;
-      if(i % 100) printf("SONAR: %f\n", sonar[n_read_samples]);
+      if(i % 100) DEBUG_PRINT("SONAR: %f\n", sonar[n_read_samples]);
       read_result = fscanf(distribution_logger, "%f ", &gains[n_read_samples]);
 			if(read_result == EOF) break;
       read_result = fscanf(distribution_logger, "%f ", &cov_divs_log[n_read_samples]);
@@ -835,30 +881,32 @@ void load_texton_distribution(void)
     }
 		fclose(distribution_logger);
 
-    printf("Learned samples = %d\n", n_read_samples);
+    DEBUG_PRINT("Learned samples = %d\n", n_read_samples);
   }
 }
+*/
 
+/*
 void learn_from_file(void)
 {
   int i;
   float fit_error;
 
-  printf("LOAD FILE\n");
+  DEBUG_PRINT("LOAD FILE\n");
   // first load the texton distributions:
   load_texton_distribution();
 
   // then learn from it:
   // TODO: uncomment & comment to learn gains instead of sonar:
-  printf("FIT MODEL\n");
+  DEBUG_PRINT("FIT MODEL\n");
   fit_linear_model(gains, text_dists, n_textons, n_read_samples, weights, &fit_error);
   // fit_linear_model(sonar, text_dists, n_textons, n_read_samples, weights, &fit_error);
 
-  printf("SAVE WEIGHTS\n");
+  DEBUG_PRINT("SAVE WEIGHTS\n");
   // save the weights to a file:
   save_weights();
 
-  printf("Learned! Fit error = %f\n", fit_error);
+  DEBUG_PRINT("Learned! Fit error = %f\n", fit_error);
 
   // free learning distributions:
   for(i = 0; i < MAX_SAMPLES_LEARNING; i++)
@@ -866,6 +914,7 @@ void learn_from_file(void)
     free(text_dists[i]);
   }
 }
+*/
 
 /**
  * Fit a linear model from samples to target values.
@@ -980,16 +1029,17 @@ float predict_gain(float* distribution)
   */
 
   sum = 0.0f;
-  for(i = 0; i < n_textons; i++)
+  for(i = 0; i < TEXTONS_N_TEXTONS; i++)
   {
     sum += weights[i] * distribution[i];
   }   
   if(of_landing_ctrl.use_bias) {
-    sum += weights[n_textons];
+    sum += weights[TEXTONS_N_TEXTONS];
   }
   return sum;
 }
 
+/*
 void save_weights(void) {
   // save the weights to a file:
   int i;
@@ -1010,16 +1060,18 @@ void save_weights(void) {
     fclose(weights_file);
   }
 }
+*/
 
+/*
 void load_weights(void) {
-  printf("A\n");
+  DEBUG_PRINT("A\n");
   int i, read_result;
   char filename[512];
   sprintf(filename, "%s/Weights_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
   weights_file = fopen(filename, "r");
 	if(weights_file == NULL)
 	{
-    printf("No weights file!\n");
+    DEBUG_PRINT("No weights file!\n");
     perror(filename);
 	}
 	else
@@ -1032,5 +1084,6 @@ void load_weights(void) {
     }
     fclose(weights_file); 
   }
-  printf("B\n");
+  DEBUG_PRINT("B\n");
 }
+*/

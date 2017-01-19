@@ -154,6 +154,9 @@ int pprz_svd_float(float **a, float *w, float **v, int m, int n)
   float ANorm = 0.0;
   float rv1[n];
 
+  if (n <= 0)
+    return 0;
+
   for (i = 0; i < n; ++i) {
     l = i + 1;
     rv1[i] = Scale * G;

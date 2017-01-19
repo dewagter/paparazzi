@@ -76,17 +76,6 @@ struct OpticalFlowLanding {
 
 extern struct OpticalFlowLanding of_landing_ctrl;
 
-// arrays containing histories for determining covariance
-float thrust_history[COV_WINDOW_SIZE];
-float divergence_history[COV_WINDOW_SIZE];
-float past_divergence_history[COV_WINDOW_SIZE];
-unsigned long ind_hist;
-// SSL:
-float *text_dists[MAX_SAMPLES_LEARNING];
-float sonar[MAX_SAMPLES_LEARNING];
-float gains[MAX_SAMPLES_LEARNING];
-float cov_divs_log[MAX_SAMPLES_LEARNING];
-float *weights;
 
 // Without optitrack set to: GUIDANCE_H_MODE_ATTITUDE
 // With optitrack set to: GUIDANCE_H_MODE_HOVER / GUIDANCE_H_MODE_NAV / GUIDANCE_H_MODE_GUIDED
@@ -105,15 +94,6 @@ extern void guidance_v_module_init(void);
 extern void guidance_v_module_enter(void);
 extern void guidance_v_module_run(bool in_flight);
 
-// variables for in message:
-float pstate;
-float pused;
-int vision_message_nr;
-int previous_message_nr;
-int landing;
-float previous_err;
-float previous_cov_err;
-float cov_div;
 
 // SSL functions:
 void save_texton_distribution(void);

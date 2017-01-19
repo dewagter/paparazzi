@@ -34,6 +34,10 @@
 #include "modules/computer_vision/cv.h"
 #include "modules/computer_vision/textons.h"
 
+float *TD_0; // temporary array meant for internal use
+float *TD_1; // temporary array meant for internal use
+uint8_t TD_ID; // indicates which array to take
+
 float ** **dictionary;
 uint32_t learned_samples = 0;
 uint8_t dictionary_initialized = 0;
