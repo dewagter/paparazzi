@@ -31,7 +31,6 @@
     <module name="gps" type="ubx_ucenter"/>
     <module name="send_imu_mag_current"/>
     <module name="logger_file"/>
-
     <module name="video_thread"/>
 
     <module name="pose_history"/>
@@ -43,7 +42,6 @@
       <define name="VIDEO_CAPTURE_CAMERA" value="bottom_camera"/>
       <define name="VIDEO_CAPTURE_PATH" value="/data/ftp/internal_000/images"/>
     </module>
-
     <!--module name="opticflow_hover"/-->
   </modules>
 
