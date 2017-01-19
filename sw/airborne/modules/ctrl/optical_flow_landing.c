@@ -206,7 +206,7 @@ void vertical_ctrl_module_init(void)
   of_landing_ctrl.divergence_setpoint = 0.0f;
   of_landing_ctrl.cov_set_point = -0.025f;
   of_landing_ctrl.cov_limit = 2.0f; // 0.0010f; //1.0f; // for cov(uz,div)
-  of_landing_ctrl.lp_factor = 0.95f;
+  of_landing_ctrl.lp_factor = 0.75f;
   of_landing_ctrl.pgain = OPTICAL_FLOW_LANDING_PGAIN;
   of_landing_ctrl.igain = OPTICAL_FLOW_LANDING_IGAIN;
   of_landing_ctrl.dgain = OPTICAL_FLOW_LANDING_DGAIN;
@@ -433,9 +433,10 @@ void vertical_ctrl_module_run(bool in_flight)
 
         // TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
         // div_factor = (vz / z) - from optitrack or similar, divided by (divergence_vision / dt)
-        divergence_vision_dt = (divergence_vision *15.0); // delta_t);
+        divergence_vision_dt = (divergence_vision * 15.0); // delta_t);
         // for Bebop2: -1.77?
-        div_factor = -1.28f; // magic number comprising field of view etc.
+        //div_factor = -1.28f; // magic number comprising field of view etc.
+        div_factor = 0.432;
 
         float new_divergence = divergence_vision_dt * div_factor; // (divergence_vision * div_factor) / dt;
 
@@ -448,7 +449,7 @@ void vertical_ctrl_module_run(bool in_flight)
         // low-pass filter the divergence:
         divergence = divergence * of_landing_ctrl.lp_factor + (new_divergence * (1.0f - of_landing_ctrl.lp_factor));
         previous_message_nr = vision_message_nr;
-        dt = 0.0f;
+        //dt = 0.0f;
 
       } else {
 
@@ -460,7 +461,7 @@ void vertical_ctrl_module_run(bool in_flight)
             divergence_history[i] = 0;
           }
           ind_hist++;
-          dt = 0.0f;
+          //dt = 0.0f;
           int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
           stabilization_cmd[COMMAND_THRUST] = nominal_throttle;
 
@@ -492,7 +493,7 @@ void vertical_ctrl_module_run(bool in_flight)
         pstate = of_landing_ctrl.pgain;
         pused = pstate;
         // bound thrust:
-        Bound(thrust, 0.8 * nominal_throttle, 0.75 * MAX_PPRZ);
+        Bound(thrust, 0.8 * nominal_throttle, 1.3 * nominal_throttle);
 
         // histories and cov detection:
         normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
