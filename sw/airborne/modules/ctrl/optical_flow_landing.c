@@ -255,7 +255,6 @@ void vertical_ctrl_module_init(void)
   landing = 0;
 
   // SSL:
-  // TODO: not freed!
   //last_texton_distribution = (float *)calloc(n_textons,sizeof(float));
   for(i = 0; i < TEXTONS_N_TEXTONS; i++)
   {
@@ -324,19 +323,18 @@ void vertical_ctrl_module_run(bool in_flight)
   float div_factor; // factor that maps divergence in pixels as received from vision to /frame
 
   // ensure dt >= 0
-  if (dt < 0) { dt = 0.0f; }
+  //if (dt < 0) { dt = 0.0f; }
 
   // get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
   //struct timespec spec;
   //clock_gettime(CLOCK_REALTIME, &spec);
-  float new_time = get_sys_time_float();
-  float delta_t = new_time - previous_time_of_landing;
-  dt += ((float)delta_t);// / 1000.0f;
-  if (dt > 10.0f) {
-    dt = 0.0f;
-    return;
-  }
-  previous_time_of_landing = new_time;
+  //float new_time = get_sys_time_float();
+  //float delta_t = new_time - previous_time_of_landing;
+  dt = 1.0f / 512.0f ; //+= ((float)delta_t);// / 1000.0f;
+  //if (dt > 10.0f) {
+  //  dt = 0.0f;
+  //  return;
+  //}
 
   if (!in_flight) {
 
@@ -407,8 +405,8 @@ void vertical_ctrl_module_run(bool in_flight)
       lp_height = of_landing_ctrl.agl_lp * of_landing_ctrl.lp_factor + of_landing_ctrl.agl * (1.0f - of_landing_ctrl.lp_factor);
 
       // only calculate velocity and divergence if dt is large enough:
-      if (dt > 0.0001f) {
-        of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) / dt;
+      {
+        of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) * 512.0;
         of_landing_ctrl.agl_lp = lp_height;
 
         // calculate the fake divergence:
@@ -423,16 +421,19 @@ void vertical_ctrl_module_run(bool in_flight)
           // perform no control with this value (keeping thrust the same)
           return;
         }
-        // reset dt:
-        dt = 0.0f;
       }
     } else {
       // USE REAL VISION OUTPUTS:
 
-      if (vision_message_nr != previous_message_nr && dt > 1E-5 && ind_hist > 1) {
+      if (vision_message_nr != previous_message_nr &&  ind_hist > 1) {
+
+        float new_time = get_sys_time_float();
+        float delta_t = new_time - previous_time_of_landing;
+        previous_time_of_landing = new_time;
+
         // TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
         // div_factor = (vz / z) - from optitrack or similar, divided by (divergence_vision / dt)
-        divergence_vision_dt = (divergence_vision / dt);
+        divergence_vision_dt = (divergence_vision *15.0); // delta_t);
         // for Bebop2: -1.77?
         div_factor = -1.28f; // magic number comprising field of view etc.
 
