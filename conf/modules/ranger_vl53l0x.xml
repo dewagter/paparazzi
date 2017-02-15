@@ -1,0 +1,20 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="ranger_vl53l0x" dir="sensors">
+  <doc>
+    <description>Sensor driver for VL53L0X laser range sensor</description>
+  </doc>
+  <header>
+    <file name="ranger_vl53l0x.h"/>
+  </header>
+  <init fun="ranger_vl53_init()"/>
+  <event fun="ranger_vl53_periodic()"/>
+  <event fun="ranger_vl53_event()"/>
+  <makefile>
+    <configure name="VL53L0X_I2C_DEV" default="i2c1" case="upper|lower"/>
+    <define name="USE_$(VL53L0X_I2C_DEV_UPPER)"/>
+    <define name="VL53L0X_I2C_DEV" value="$(VL53L0X_I2C_DEV_LOWER)"/>
+    <file name="ranger_vl53l0x.c"/>
+    <file name="vl53l0x.c" dir="peripherals"/>  </makefile>
+</module>
+
