@@ -493,7 +493,10 @@ void vertical_ctrl_module_run(bool in_flight)
         pstate = of_landing_ctrl.pgain;
         pused = pstate;
         // bound thrust:
-        Bound(thrust, 0.8 * nominal_throttle, 1.3 * nominal_throttle);
+
+        // TODO
+        //Bound(thrust, 0.8 * nominal_throttle, 1.3 * nominal_throttle);
+        Bound(thrust, 0, MAX_PPRZ);
 
         // histories and cov detection:
         normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
@@ -513,7 +516,7 @@ void vertical_ctrl_module_run(bool in_flight)
 
         if (ind_hist >= COV_WINDOW_SIZE && fabs(cov_div) > of_landing_ctrl.cov_limit) {
           // land by setting 90% nominal thrust:
-          landing = 1;
+          //landing = 1;
           thrust = 0.90 * nominal_throttle;
         }
         stabilization_cmd[COMMAND_THRUST] = thrust;
