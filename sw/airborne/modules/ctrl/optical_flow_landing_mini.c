@@ -33,19 +33,10 @@
  *
  */
 
-//#if PRINT_DEBUG_LANDING
-//#include <stdio.h>
-//#define DEBUG_PRINT(...) printf(__VA_ARGS__)
-//#else
 #define DEBUG_PRINT(...) {}
-//#endif
 
-#include "optical_flow_landing.h"
-
-
+#include "optical_flow_landing_mini.h"
 #include "modules/computer_vision/textons.h"
-
-#define TEXTONS_FROM_STEREO 1
 
 float dt;
 float divergence;
@@ -76,7 +67,7 @@ float *text_dists[MAX_SAMPLES_LEARNING];
 float sonar[MAX_SAMPLES_LEARNING];
 float gains[MAX_SAMPLES_LEARNING];
 float cov_divs_log[MAX_SAMPLES_LEARNING];
-float weights[TEXTONS_N_TEXTONS+1];
+float weights[TEXTONS_N_TEXTONS + 1];
 
 
 // minimum value of the P-gain for divergence control
@@ -93,10 +84,6 @@ float weights[TEXTONS_N_TEXTONS+1];
 #include "subsystems/navigation/common_flight_plan.h"
 #include "subsystems/datalink/telemetry.h"
 
-// used for calculating velocity from height measurements:
-#include "mcu_periph/sys_time.h"
-float previous_time_of_landing;
-
 // sending the divergence message to the ground station:
 static void send_divergence(struct transport_tx *trans, struct link_device *dev)
 {
@@ -105,7 +92,6 @@ static void send_divergence(struct transport_tx *trans, struct link_device *dev)
                            &cov_div, &pstate, &pused, &(of_landing_ctrl.agl));
 }
 
-#include "modules/ctrl/optical_flow_landing.h"
 #include "generated/airframe.h"
 #include "paparazzi.h"
 #include "subsystems/abi.h"
@@ -118,15 +104,12 @@ static void send_divergence(struct transport_tx *trans, struct link_device *dev)
 // include textons for SSL:
 // ************************
 //#include <stdio.h>
-float last_texton_distribution[TEXTONS_N_TEXTONS]; // used to check if a new texton distribution has been received
-// TODO: last_texton_distribution's size depends on the number of textons in textons.h/c.
-// it should now be set to 10 to match the number of textons on the stereoboard... this is extremely ugly.
-#define n_ts 10
-float texton_distribution_stereoboard[n_ts];
-//#define TEXTON_DISTRIBUTION_PATH /data/ftp/internal000
-//static FILE *distribution_logger = NULL;
-//static FILE *weights_file = NULL;
+float last_texton_distribution[TEXTONS_N_TEXTONS];
+float texton_distribution_stereoboard[TEXTONS_N_TEXTONS];
+
+
 unsigned int n_read_samples;
+
 // paparazzi files for doing svd etc.:
 #include "math/pprz_algebra_float.h"
 #include "math/pprz_matrix_decomp_float.h"
@@ -176,27 +159,32 @@ PRINT_CONFIG_VAR(OPTICAL_FLOW_LANDING_TEXTONS_ID)
 #define OPTICAL_FLOW_LANDING_COV_METHOD 0
 #endif
 
+// ABI callback handles
 static abi_event agl_ev; ///< The altitude ABI event
 static abi_event optical_flow_ev;
 static abi_event textons_ev;
 
+// ABI callback functions
 /// Callback function of the ground altitude
 static void vertical_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), float distance);
 // Callback function of the optical flow estimate:
-static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp __attribute__((unused)), int16_t flow_x __attribute__((unused)), int16_t flow_y __attribute__((unused)), int16_t flow_der_x __attribute__((unused)), int16_t flow_der_y __attribute__((unused)), uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)));
+static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)),
+    uint32_t stamp __attribute__((unused)), int16_t flow_x __attribute__((unused)), int16_t flow_y __attribute__((unused)),
+    int16_t flow_der_x __attribute__((unused)), int16_t flow_der_y __attribute__((unused)),
+    uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)));
 // Callback function of the texton histogram from the stereoboard:
-static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1, uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5,
+static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1,
+                                     uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5,
                                      uint8_t histogram6, uint8_t histogram7, uint8_t histogram8, uint8_t histogram9);
+
+
 
 struct OpticalFlowLanding of_landing_ctrl;
 
-void vertical_ctrl_module_init(void);
-void vertical_ctrl_module_run(bool in_flight);
 
-/**
- * Initialize the optical flow landing module
- */
-void vertical_ctrl_module_init(void)
+
+// Module functions called from module
+void optical_flow_landing_init(void)
 {
   unsigned int i;
 
@@ -225,11 +213,6 @@ void vertical_ctrl_module_init(void)
   of_landing_ctrl.close_to_edge = 0.005;
   of_landing_ctrl.use_bias = false;
   of_landing_ctrl.snapshot = false;
-  
-  //struct timespec spec;
-  //clock_gettime(CLOCK_REALTIME, &spec);
-  previous_time_of_landing = get_sys_time_float();
-  //previous_time_of_landing = time(NULL);
 
   // clear histories:
   ind_hist = 0;
@@ -255,17 +238,13 @@ void vertical_ctrl_module_init(void)
   landing = 0;
 
   // SSL:
-  //last_texton_distribution = (float *)calloc(n_textons,sizeof(float));
-  for(i = 0; i < TEXTONS_N_TEXTONS; i++)
-  {
+  for (i = 0; i < TEXTONS_N_TEXTONS; i++) {
     last_texton_distribution[i] = 0.0f;
   }
-  //weights = (float *)calloc(n_textons+1,sizeof(float));
-  for(i = 0; i <= TEXTONS_N_TEXTONS; i++)
-  {
+  for (i = 0; i <= TEXTONS_N_TEXTONS; i++) {
     weights[i] = 0.0f;
   }
-  
+
 
   // Subscribe to the altitude above ground level ABI messages
   AbiBindMsgAGL(OPTICAL_FLOW_LANDING_AGL_ID, &agl_ev, vertical_ctrl_agl_cb);
@@ -273,14 +252,90 @@ void vertical_ctrl_module_init(void)
   AbiBindMsgOPTICAL_FLOW(OPTICAL_FLOW_LANDING_OPTICAL_FLOW_ID, &optical_flow_ev, vertical_ctrl_optical_flow_cb);
   // Subscribe to the textons estimator:
   AbiBindMsgTEXTONS(OPTICAL_FLOW_LANDING_TEXTONS_ID, &textons_ev, vertical_ctrl_textons_cb);
-  
+
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_DIVERGENCE, send_divergence);
 }
+
+void optical_flow_landing_periodic(void)
+{
+  float div_factor; // factor that maps divergence in pixels as received from vision to /frame
+
+  /***********
+   * VISION
+   ***********/
+
+  if (of_landing_ctrl.VISION_METHOD == 0) {
+
+    float lp_height; // low-pass height
+
+    // SIMULATED DIVERGENCE:
+
+    // USE OPTITRACK HEIGHT
+    of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
+    // else we get an immediate jump in divergence when switching on.
+    if (of_landing_ctrl.agl_lp < 1E-5 || ind_hist == 0) {
+      of_landing_ctrl.agl_lp = of_landing_ctrl.agl;
+    }
+    if (fabs(of_landing_ctrl.agl - of_landing_ctrl.agl_lp) > 1.0f) {
+      // ignore outliers:
+      of_landing_ctrl.agl = of_landing_ctrl.agl_lp;
+    }
+    // calculate the new low-pass height and the velocity
+    lp_height = of_landing_ctrl.agl_lp * of_landing_ctrl.lp_factor + of_landing_ctrl.agl *
+                (1.0f - of_landing_ctrl.lp_factor);
+
+    // only calculate velocity and divergence if dt is large enough:
+    {
+      of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) * 512.0;
+      of_landing_ctrl.agl_lp = lp_height;
+
+      // calculate the fake divergence:
+      if (of_landing_ctrl.agl_lp > 0.0001f) {
+        divergence = of_landing_ctrl.vel / of_landing_ctrl.agl_lp;
+        divergence_vision_dt = (divergence_vision / dt); // TODO: shouldn't this be divergence in this fake vision case?
+        if (fabs(divergence_vision_dt) > 1E-5) {
+          div_factor = divergence / divergence_vision_dt;
+        }
+      } else {
+        divergence = 1000.0f;
+        // perform no control with this value (keeping thrust the same)
+        return;
+      }
+    }
+  } else {
+    // USE REAL VISION OUTPUTS:
+
+    if (vision_message_nr != previous_message_nr &&  ind_hist > 1) {
+
+      // TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
+      // div_factor = (vz / z) - from optitrack or similar, divided by (divergence_vision / dt)
+      divergence_vision_dt = (divergence_vision * 15.0); // delta_t);
+      // for Bebop2: -1.77?
+      //div_factor = -1.28f; // magic number comprising field of view etc.
+      div_factor = 0.432;
+
+      float new_divergence = divergence_vision_dt * div_factor; // (divergence_vision * div_factor) / dt;
+
+      // if very different from the previous divergence, this is likely an outlier: input a thresholded observation into the filter:
+      if (fabs(new_divergence - divergence) > 0.20) {
+        if (new_divergence < divergence) { new_divergence = divergence - 0.10f; }
+        else { new_divergence = divergence + 0.10f; }
+      }
+
+      // low-pass filter the divergence:
+      divergence = divergence * of_landing_ctrl.lp_factor + (new_divergence * (1.0f - of_landing_ctrl.lp_factor));
+      previous_message_nr = vision_message_nr;
+
+    }
+  }
+}
+
+
 
 /**
  * Reset all variables:
  */
-void reset_all_vars()
+void reset_all_vars(void)
 {
 
   int i;
@@ -294,9 +349,6 @@ void reset_all_vars()
   previous_err = 0.0f;
   previous_cov_err = 0.0f;
   divergence = of_landing_ctrl.divergence_setpoint;
-  //struct timespec spec;
-  //clock_gettime(CLOCK_REALTIME, &spec);
-  previous_time_of_landing = get_sys_time_float();
   vision_message_nr = 1;
   previous_message_nr = 0;
   for (i = 0; i < COV_WINDOW_SIZE; i++) {
@@ -306,8 +358,7 @@ void reset_all_vars()
   landing = 0;
 
   // SSL:
-  for(i = 0; i < TEXTONS_N_TEXTONS; i++)
-  {
+  for (i = 0; i < TEXTONS_N_TEXTONS; i++) {
     last_texton_distribution[i] = 0.0f;
   }
 }
@@ -316,66 +367,28 @@ void reset_all_vars()
  * Run the optical flow landing module
  */
 
-void vertical_ctrl_module_run(bool in_flight)
+void guidance_v_module_run(bool in_flight)
 {
-  int i;
-  float lp_height; // low-pass height
-  float div_factor; // factor that maps divergence in pixels as received from vision to /frame
 
-  // ensure dt >= 0
-  //if (dt < 0) { dt = 0.0f; }
-
-  // get delta time, dt, to scale the divergence measurements correctly when using "simulated" vision:
-  //struct timespec spec;
-  //clock_gettime(CLOCK_REALTIME, &spec);
-  //float new_time = get_sys_time_float();
-  //float delta_t = new_time - previous_time_of_landing;
   dt = 1.0f / 512.0f ; //+= ((float)delta_t);// / 1000.0f;
-  //if (dt > 10.0f) {
-  //  dt = 0.0f;
-  //  return;
-  //}
 
   if (!in_flight) {
 
-    
-    // SSL: only learn if not flying - due to use of resources:
-    if(of_landing_ctrl.learn_gains) {
-      DEBUG_PRINT("STARTING LEARNING!\n");
-      // learn the weights from the file filled with training examples:
 
+    // SSL: only learn if not flying - due to use of resources:
+    if (of_landing_ctrl.learn_gains) {
+      // learn the weights from the file filled with training examples:
 
       ////////// CDW REMOVED
       //learn_from_file();
       // reset the learn_gains variable to false:
       of_landing_ctrl.learn_gains = false;
     }
-    if(of_landing_ctrl.load_weights) {
+    if (of_landing_ctrl.load_weights) {
       // TODO: uncomment:
       // load_weights();
       of_landing_ctrl.load_weights = false;
     }
-
-    // TODO: just for debugging, remove:
-    if(TEXTONS_FROM_STEREO) {
-      DEBUG_PRINT("\nTextons: ");
-      for(i = 0; i < TEXTONS_N_TEXTONS; i++)
-      { 
-        DEBUG_PRINT("%f ", texton_distribution_stereoboard[i]);
-      }
-    }
-    /*
-    // TODO: remove, just for testing:
-    // of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
-    // DEBUG_PRINT("Sonar height = %f\n", of_landing_ctrl.agl);
-    if(weights[n_textons] == 0.0f) {
-      save_texton_distribution();
-    }
-    else
-    {
-      DEBUG_PRINT("Predicted gain = %f\n", predict_gain(texton_distribution));
-    }
-    */
 
     // When not flying and in mode module:
     // Reset integrators
@@ -383,93 +396,6 @@ void vertical_ctrl_module_run(bool in_flight)
 
   } else {
 
-    /***********
-     * VISION
-     ***********/
-
-    if (of_landing_ctrl.VISION_METHOD == 0) {
-
-      // SIMULATED DIVERGENCE:
-
-      // USE OPTITRACK HEIGHT
-      of_landing_ctrl.agl = (float) gps.lla_pos.alt / 1000.0f;
-      // else we get an immediate jump in divergence when switching on.
-      if (of_landing_ctrl.agl_lp < 1E-5 || ind_hist == 0) {
-        of_landing_ctrl.agl_lp = of_landing_ctrl.agl;
-      }
-      if (fabs(of_landing_ctrl.agl - of_landing_ctrl.agl_lp) > 1.0f) {
-        // ignore outliers:
-        of_landing_ctrl.agl = of_landing_ctrl.agl_lp;
-      }
-      // calculate the new low-pass height and the velocity
-      lp_height = of_landing_ctrl.agl_lp * of_landing_ctrl.lp_factor + of_landing_ctrl.agl * (1.0f - of_landing_ctrl.lp_factor);
-
-      // only calculate velocity and divergence if dt is large enough:
-      {
-        of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) * 512.0;
-        of_landing_ctrl.agl_lp = lp_height;
-
-        // calculate the fake divergence:
-        if (of_landing_ctrl.agl_lp > 0.0001f) {
-          divergence = of_landing_ctrl.vel / of_landing_ctrl.agl_lp;
-          divergence_vision_dt = (divergence_vision / dt); // TODO: shouldn't this be divergence in this fake vision case?
-          if (fabs(divergence_vision_dt) > 1E-5) {
-            div_factor = divergence / divergence_vision_dt;
-          }
-        } else {
-          divergence = 1000.0f;
-          // perform no control with this value (keeping thrust the same)
-          return;
-        }
-      }
-    } else {
-      // USE REAL VISION OUTPUTS:
-
-      if (vision_message_nr != previous_message_nr &&  ind_hist > 1) {
-
-        float new_time = get_sys_time_float();
-        float delta_t = new_time - previous_time_of_landing;
-        previous_time_of_landing = new_time;
-
-        // TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
-        // div_factor = (vz / z) - from optitrack or similar, divided by (divergence_vision / dt)
-        divergence_vision_dt = (divergence_vision * 15.0); // delta_t);
-        // for Bebop2: -1.77?
-        //div_factor = -1.28f; // magic number comprising field of view etc.
-        div_factor = 0.432;
-
-        float new_divergence = divergence_vision_dt * div_factor; // (divergence_vision * div_factor) / dt;
-
-        // if very different from the previous divergence, this is likely an outlier: input a thresholded observation into the filter:
-        if (fabs(new_divergence - divergence) > 0.20) {
-          if (new_divergence < divergence) { new_divergence = divergence - 0.10f; }
-          else { new_divergence = divergence + 0.10f; }
-        }
-
-        // low-pass filter the divergence:
-        divergence = divergence * of_landing_ctrl.lp_factor + (new_divergence * (1.0f - of_landing_ctrl.lp_factor));
-        previous_message_nr = vision_message_nr;
-        //dt = 0.0f;
-
-      } else {
-
-        // after re-entering the module, the divergence should be equal to the set point:
-        if (ind_hist <= 1) {
-          divergence = of_landing_ctrl.divergence_setpoint;
-          for (i = 0; i < COV_WINDOW_SIZE; i++) {
-            thrust_history[i] = 0;
-            divergence_history[i] = 0;
-          }
-          ind_hist++;
-          //dt = 0.0f;
-          int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
-          stabilization_cmd[COMMAND_THRUST] = nominal_throttle;
-
-        }
-        // else: do nothing, let dt increment
-        return;
-      }
-    }
 
     /***********
     * CONTROL
@@ -488,7 +414,8 @@ void vertical_ctrl_module_run(bool in_flight)
 
         // use the divergence for control:
         float err = of_landing_ctrl.divergence_setpoint - divergence;
-        int32_t thrust = nominal_throttle + of_landing_ctrl.pgain * err * MAX_PPRZ + of_landing_ctrl.igain * of_landing_ctrl.sum_err * MAX_PPRZ;
+        int32_t thrust = nominal_throttle + of_landing_ctrl.pgain * err * MAX_PPRZ + of_landing_ctrl.igain *
+                         of_landing_ctrl.sum_err * MAX_PPRZ;
         // make sure the p gain is logged:
         pstate = of_landing_ctrl.pgain;
         pused = pstate;
@@ -521,7 +448,7 @@ void vertical_ctrl_module_run(bool in_flight)
         }
         stabilization_cmd[COMMAND_THRUST] = thrust;
         of_landing_ctrl.sum_err += err;
-      } else if(of_landing_ctrl.CONTROL_METHOD == 1) {
+      } else if (of_landing_ctrl.CONTROL_METHOD == 1) {
 
         // **********************
         // ADAPTIVE GAIN CONTROL:
@@ -534,8 +461,8 @@ void vertical_ctrl_module_run(bool in_flight)
         if (error_cov > fabs(of_landing_ctrl.cov_set_point)) { error_cov = fabs(of_landing_ctrl.cov_set_point); }
 
         // if close enough, store inputs:
-        if(ind_hist >= COV_WINDOW_SIZE && fabs(error_cov) < of_landing_ctrl.close_to_edge) {
-          if(of_landing_ctrl.snapshot) {
+        if (ind_hist >= COV_WINDOW_SIZE && fabs(error_cov) < of_landing_ctrl.close_to_edge) {
+          if (of_landing_ctrl.snapshot) {
             // TODO: watch out, if the texton distribution is the same as the previous one, it will not be saved - and indices of images and the training set will not coincide...
             // video_thread_take_shot(true); // now defined differently...
           }
@@ -590,30 +517,26 @@ void vertical_ctrl_module_run(bool in_flight)
         Bound(thrust, 0.8 * nominal_throttle, 0.75 * MAX_PPRZ); // was 0.6 0.9
         stabilization_cmd[COMMAND_THRUST] = thrust;
         of_landing_ctrl.sum_err += err;
-      }
-      else {
-  
+      } else {
+
         // SSL LANDING: use learned weights for setting the gain on the way down:
-        
+
         // adapt the p-gain with a low-pass filter to the gain predicted by image appearance:
         // TODO: lp_factor is now the same as used for the divergence. This may not be appropriate
-        if(!TEXTONS_FROM_STEREO) {
-          pstate = predict_gain(texton_distribution);
-        }
-        else {
-          pstate = predict_gain(texton_distribution_stereoboard);
-        }
-        of_landing_ctrl.pgain = of_landing_ctrl.lp_factor * of_landing_ctrl.pgain + (1.0f - of_landing_ctrl.lp_factor) * of_landing_ctrl.stable_gain_factor * pstate;
+        pstate = predict_gain(texton_distribution_stereoboard);
+        of_landing_ctrl.pgain = of_landing_ctrl.lp_factor * of_landing_ctrl.pgain + (1.0f - of_landing_ctrl.lp_factor) *
+                                of_landing_ctrl.stable_gain_factor * pstate;
         pused = of_landing_ctrl.pgain;
 
         // make sure pused does not become too small, nor grows too fast:
         if (of_landing_ctrl.pgain < MINIMUM_GAIN) { of_landing_ctrl.pgain = MINIMUM_GAIN; }
-        
+
         DEBUG_PRINT("of_landing_ctrl.pgain = %f\n", of_landing_ctrl.pgain);
 
         // use the divergence for control:
         float err = of_landing_ctrl.divergence_setpoint - divergence;
-        int32_t thrust = nominal_throttle + of_landing_ctrl.pgain * err * MAX_PPRZ + of_landing_ctrl.igain * of_landing_ctrl.sum_err * MAX_PPRZ;
+        int32_t thrust = nominal_throttle + of_landing_ctrl.pgain * err * MAX_PPRZ + of_landing_ctrl.igain *
+                         of_landing_ctrl.sum_err * MAX_PPRZ;
         // bound thrust:
         Bound(thrust, 0.8 * nominal_throttle, 0.75 * MAX_PPRZ);
 
@@ -664,7 +587,7 @@ float get_mean_array(float *a, int n_elements)
 {
   // determine the mean for the vector:
   float mean = 0;
-  for ( int i = 0; i < n_elements; i++) {
+  for (int i = 0; i < n_elements; i++) {
     mean += a[i];
   }
   mean /= n_elements;
@@ -687,7 +610,7 @@ float get_cov(float *a, float *b, int n_elements)
 
   // Determine the covariance:
   float cov = 0;
-  for ( int i = 0; i < n_elements; i++) {
+  for (int i = 0; i < n_elements; i++) {
     cov += (a[i] - mean_a) * (b[i] - mean_b);
   }
 
@@ -704,15 +627,20 @@ static void vertical_ctrl_agl_cb(uint8_t sender_id __attribute__((unused)), floa
   // value from the sonar - normally, this is replaced by the optitrack value in the main loop.
   of_landing_ctrl.agl = distance;
 }
+
 // Getting information from optical flow:
-static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)), uint32_t stamp __attribute__((unused)), int16_t flow_x __attribute__((unused)), int16_t flow_y __attribute__((unused)), int16_t flow_der_x __attribute__((unused)), int16_t flow_der_y __attribute__((unused)), uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)))
+static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unused)),
+    uint32_t stamp __attribute__((unused)), int16_t flow_x __attribute__((unused)), int16_t flow_y __attribute__((unused)),
+    int16_t flow_der_x __attribute__((unused)), int16_t flow_der_y __attribute__((unused)),
+    uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)))
 {
   divergence_vision = size_divergence;
   vision_message_nr++;
   if (vision_message_nr > 10) { vision_message_nr = 0; }
 }
 // Getting textons:
-static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1, uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5,
+static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1,
+                                     uint8_t histogram2, uint8_t histogram3, uint8_t histogram4, uint8_t histogram5,
                                      uint8_t histogram6, uint8_t histogram7, uint8_t histogram8, uint8_t histogram9)
 {
   int i;
@@ -728,11 +656,11 @@ static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), 
   texton_distribution_stereoboard[9] = (float) histogram9;
 
   float sum = 0;
-  for (i = 0; i < n_ts; i++) {
+  for (i = 0; i < TEXTONS_N_TEXTONS; i++) {
     sum += texton_distribution_stereoboard[i];
   }
 
-  for (i = 0; i < n_ts; i++) {
+  for (i = 0; i < TEXTONS_N_TEXTONS; i++) {
     texton_distribution_stereoboard[i] /= sum;
   }
 }
@@ -741,7 +669,20 @@ static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), 
 // Call our controller
 void guidance_v_module_init(void)
 {
-  vertical_ctrl_module_init();
+  int i;
+  // after re-entering the module, the divergence should be equal to the set point:
+  if (ind_hist <= 1) {
+    divergence = of_landing_ctrl.divergence_setpoint;
+    for (i = 0; i < COV_WINDOW_SIZE; i++) {
+      thrust_history[i] = 0;
+      divergence_history[i] = 0;
+    }
+    ind_hist++;
+    //dt = 0.0f;
+    int32_t nominal_throttle = of_landing_ctrl.nominal_thrust * MAX_PPRZ;
+    stabilization_cmd[COMMAND_THRUST] = nominal_throttle;
+
+  }
 }
 
 /**
@@ -761,9 +702,6 @@ void guidance_v_module_enter(void)
   normalized_thrust = 0.0f;
   divergence = of_landing_ctrl.divergence_setpoint;
   dt = 0.0f;
-  //struct timespec spec;
-  //clock_gettime(CLOCK_REALTIME, &spec);
-  previous_time_of_landing = get_sys_time_float(); //spec.tv_nsec / 1.0E6;
   vision_message_nr = 1;
   previous_message_nr = 0;
   for (i = 0; i < COV_WINDOW_SIZE; i++) {
@@ -772,154 +710,6 @@ void guidance_v_module_enter(void)
   }
 }
 
-void guidance_v_module_run(bool in_flight)
-{
-  vertical_ctrl_module_run(in_flight);
-}
-
-/*
-void save_texton_distribution(void)
-{
-  // Since the control module runs faster than the texton vision process, we need to check that we are storing a recent vision result:
-  int i, same;
-  same = 1;
-  if(!TEXTONS_FROM_STEREO) {
-    for(i = 0; i < n_textons; i++)
-    { 
-      // check if the texton distribution is the same as the previous one:
-      if(texton_distribution[i] != last_texton_distribution[i]) 
-      {
-        same = 0;
-      }
-      // update the last texton distribution:
-      last_texton_distribution[i] = texton_distribution[i];
-    }
-  }
-  else {
-    for(i = 0; i < n_textons; i++)
-    { 
-      // check if the texton distribution is the same as the previous one:
-      if(texton_distribution_stereoboard[i] != last_texton_distribution[i]) 
-      {
-        same = 0;
-      }
-      // update the last texton distribution:
-      last_texton_distribution[i] = texton_distribution_stereoboard[i];
-    }
-  }
-  // don't save the texton distribution if it is the same as previous time step:
-  //if(same)
-  //{
-  //  DEBUG_PRINT("Same\n");
-  //  return;
-  //}
-
-  // TODO: if(!same)?
-  // If not the same, append the target values (heights, gains) and texton values to a .dat file:
-  char filename[512];
-	sDEBUG_PRINT(filename, "%s/Training_set_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
-  distribution_logger = fopen(filename, "a");
-	if(distribution_logger == NULL)
-	{
-    perror(filename);
-		//perror("Error while opening the file.\n");
-	}
-	else
-	{
-    DEBUG_PRINT("Logging at height %f, gain %f, cov_div %f\n", of_landing_ctrl.agl, pstate, cov_div);
-
-    // save the information in a single row:
-    fprintf(distribution_logger, "%f ", of_landing_ctrl.agl); // sonar measurement
-    fprintf(distribution_logger, "%f ", pstate); // gain measurement
-    fprintf(distribution_logger, "%f ", cov_div); // cov div measurement
-    if(!TEXTONS_FROM_STEREO) {
-      for(i = 0; i < n_textons-1; i++)
-      {
-        fprintf(distribution_logger, "%f ", texton_distribution[i]);
-      }
-      fprintf(distribution_logger, "%f\n", texton_distribution[n_textons-1]);
-    }
-    else {
-    for(i = 0; i < n_textons-1; i++)
-      {
-        fprintf(distribution_logger, "%f ", texton_distribution_stereoboard[i]);
-      }
-      fprintf(distribution_logger, "%f\n", texton_distribution_stereoboard[n_textons-1]);
-    }
-    fclose(distribution_logger);
-  }
-}
-*/
-
-/*
-void load_texton_distribution(void)
-{
-  int i, j, read_result;
-  char filename[512];
-	sprintf(filename, "%s/Training_set_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
-    
-	if((distribution_logger = fopen(filename, "r")))
-	{
-    // Load the dictionary:
-    n_read_samples = 0;
-    // For now we read the samples sequentially:
-    for(i = 0; i < MAX_SAMPLES_LEARNING; i++)
-    {
-      read_result = fscanf(distribution_logger, "%f ", &sonar[n_read_samples]);
-			if(read_result == EOF) break;
-      if(i % 100) DEBUG_PRINT("SONAR: %f\n", sonar[n_read_samples]);
-      read_result = fscanf(distribution_logger, "%f ", &gains[n_read_samples]);
-			if(read_result == EOF) break;
-      read_result = fscanf(distribution_logger, "%f ", &cov_divs_log[n_read_samples]);
-			if(read_result == EOF) break;
-
-      text_dists[n_read_samples] = (float*) calloc(n_textons,sizeof(float));
-
-      for(j = 0; j < n_textons-1; j++)
-      {
-        read_result = fscanf(distribution_logger, "%f ", &text_dists[n_read_samples][j]);
-  			if(read_result == EOF) break;
-      }
-      read_result = fscanf(distribution_logger, "%f\n", &text_dists[n_read_samples][n_textons-1]);
-			if(read_result == EOF) break;
-      n_read_samples++;
-    }
-		fclose(distribution_logger);
-
-    DEBUG_PRINT("Learned samples = %d\n", n_read_samples);
-  }
-}
-*/
-
-/*
-void learn_from_file(void)
-{
-  int i;
-  float fit_error;
-
-  DEBUG_PRINT("LOAD FILE\n");
-  // first load the texton distributions:
-  load_texton_distribution();
-
-  // then learn from it:
-  // TODO: uncomment & comment to learn gains instead of sonar:
-  DEBUG_PRINT("FIT MODEL\n");
-  fit_linear_model(gains, text_dists, n_textons, n_read_samples, weights, &fit_error);
-  // fit_linear_model(sonar, text_dists, n_textons, n_read_samples, weights, &fit_error);
-
-  DEBUG_PRINT("SAVE WEIGHTS\n");
-  // save the weights to a file:
-  save_weights();
-
-  DEBUG_PRINT("Learned! Fit error = %f\n", fit_error);
-
-  // free learning distributions:
-  for(i = 0; i < MAX_SAMPLES_LEARNING; i++)
-  {
-    free(text_dists[i]);
-  }
-}
-*/
 
 /**
  * Fit a linear model from samples to target values.
@@ -930,7 +720,7 @@ void learn_from_file(void)
  * @param[out] parameters* Parameters of the linear fit
  * @param[out] fit_error* Total error of the fit
  */
-void fit_linear_model(float* targets, float** samples, uint8_t D, uint16_t count, float* params, float* fit_error)
+void fit_linear_model(float *targets, float **samples, uint8_t D, uint16_t count, float *params, float *fit_error)
 {
 
   // We will solve systems of the form A x = b,
@@ -941,7 +731,7 @@ void fit_linear_model(float* targets, float** samples, uint8_t D, uint16_t count
   // local vars for iterating, random numbers:
   int sam, d;
   uint16_t n_samples = count;
-  uint8_t D_1 = D+1;
+  uint8_t D_1 = D + 1;
   // ensure that n_samples is high enough to ensure a result for a single fit:
   n_samples = (n_samples < D_1) ? D_1 : n_samples;
   // n_samples should not be higher than count:
@@ -955,19 +745,18 @@ void fit_linear_model(float* targets, float** samples, uint8_t D, uint16_t count
   MAKE_MATRIX_PTR(targets_all, _targets_all, count);
 
   for (sam = 0; sam < count; sam++) {
-     for(d = 0; d < D; d++) {
+    for (d = 0; d < D; d++) {
       AA[sam][d] = samples[sam][d];
     }
-    if(of_landing_ctrl.use_bias) {
+    if (of_landing_ctrl.use_bias) {
       AA[sam][D] = 1.0f;
-    }
-    else {
-      AA[sam][D] = 0.0f;      
+    } else {
+      AA[sam][D] = 0.0f;
     }
     targets_all[sam][0] = targets[sam];
   }
 
-  
+
   // decompose A in u, w, v with singular value decomposition A = u * w * vT.
   // u replaces A as output:
   float _parameters[D_1][1];
@@ -995,100 +784,29 @@ void fit_linear_model(float* targets, float** samples, uint8_t D, uint16_t count
   }
   *fit_error /= count;
 
-  for(d = 0; d < D_1; d++) {
-      params[d] = parameters[d][0];
+  for (d = 0; d < D_1; d++) {
+    params[d] = parameters[d][0];
   }
-  
+
 }
 
 // General TODO: what happens if n_textons changes?
 
-float predict_gain(float* distribution)
+float predict_gain(float *distribution)
 {
   int i;
   float sum;
 
-  /*
-  // TODO: is this not slower than what our own implementation would do?
 
-  uint8_t D_1 = n_textons+1;
-  float _distr[D_1];
-  float _pred[1][1];
-
-  // make feature vector:
-  MAKE_MATRIX_PTR(distr, _distr, D_1);
-  for(i = 0; i < n_textons; i++) {
-    distr[i] = distribution[i];
-  }
-  distr[n_textons] = 1.0f; // bias
-
-  // make weight vector:
-  MAKE_MATRIX_PTR(w, weights, D_1);
-  // make resulting prediction:
-  MAKE_MATRIX_PTR(pred, _pred, count);
-  
-  // multiply the vectors:
-  MAT_MUL(1, D_1, 1, pred, distr, w);
-  
-  return pred[0][0];
-  */
 
   sum = 0.0f;
-  for(i = 0; i < TEXTONS_N_TEXTONS; i++)
-  {
+  for (i = 0; i < TEXTONS_N_TEXTONS; i++) {
     sum += weights[i] * distribution[i];
-  }   
-  if(of_landing_ctrl.use_bias) {
+  }
+  if (of_landing_ctrl.use_bias) {
     sum += weights[TEXTONS_N_TEXTONS];
   }
   return sum;
 }
 
-/*
-void save_weights(void) {
-  // save the weights to a file:
-  int i;
-  char filename[512];
-	sprintf(filename, "%s/Weights_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
-  weights_file = fopen(filename, "w");
-	if(weights_file == NULL)
-	{
-    perror(filename);
-	}
-	else
-	{
-    // save the information in a single row:
-    for(i = 0; i <= n_textons; i++)
-    {
-      fprintf(weights_file, "%f ", weights[i]);
-    }
-    fclose(weights_file);
-  }
-}
-*/
 
-/*
-void load_weights(void) {
-  DEBUG_PRINT("A\n");
-  int i, read_result;
-  char filename[512];
-  sprintf(filename, "%s/Weights_%05d.dat", STRINGIFY(TEXTON_DISTRIBUTION_PATH), 0);
-  weights_file = fopen(filename, "r");
-	if(weights_file == NULL)
-	{
-    DEBUG_PRINT("No weights file!\n");
-    perror(filename);
-	}
-	else
-	{
-    // load the weights, stored in a single row:
-    for(i = 0; i <= n_textons; i++)
-    {
-      read_result = fscanf(distribution_logger, "%f ", &weights[i]);
-			if(read_result == EOF) break;
-    }
-    fclose(weights_file); 
-  }
-  DEBUG_PRINT("B\n");
-}
-*/

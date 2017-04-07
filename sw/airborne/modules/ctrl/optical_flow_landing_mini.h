@@ -32,8 +32,8 @@
  * <http://iopscience.iop.org/article/10.1088/1748-3190/11/1/016004>
  */
 
-#ifndef OPTICAL_FLOW_LANDING_H_
-#define OPTICAL_FLOW_LANDING_H_
+#ifndef OPTICAL_FLOW_LANDING_MINI_H_
+#define OPTICAL_FLOW_LANDING_MINI_H_
 
 // number of time steps used for calculating the covariance (oscillations)
 #define COV_WINDOW_SIZE 60
@@ -65,7 +65,8 @@ struct OpticalFlowLanding {
   int COV_METHOD;               ///< method to calculate the covariance: between thrust and div (0) or div and div past (1)
   int delay_steps;              ///< number of delay steps for div past
   // TODO: volatile bool?
-  volatile bool learn_gains;    ///< set to true if the robot needs to learn a mapping from texton distributions to the p-gain
+  volatile bool
+  learn_gains;    ///< set to true if the robot needs to learn a mapping from texton distributions to the p-gain
   float stable_gain_factor;     ///< this factor is multiplied with the gain estimate from SSL, in interval [0,1]. If 1, the system will be unstable, if 0, there is no control (performance).
   bool load_weights;            ///< load the weights that were learned before
   float close_to_edge;          ///< if abs(cov_div - reference cov_div) < close_to_edge, then texton distributions and gains are stored for learning
@@ -87,9 +88,13 @@ extern struct OpticalFlowLanding of_landing_ctrl;
 // supporting functions for cov calculation:
 float get_cov(float *a, float *b, int n_elements);
 float get_mean_array(float *a, int n_elements);
-void reset_all_vars(void);
+extern void reset_all_vars(void);
 
-// Implement own Vertical loops
+// Module functions called from module
+extern void optical_flow_landing_init(void);
+extern void optical_flow_landing_periodic(void);
+
+// Module functions called from control loop
 extern void guidance_v_module_init(void);
 extern void guidance_v_module_enter(void);
 extern void guidance_v_module_run(bool in_flight);
@@ -98,9 +103,9 @@ extern void guidance_v_module_run(bool in_flight);
 // SSL functions:
 void save_texton_distribution(void);
 void load_texton_distribution(void);
-void fit_linear_model(float* targets, float** samples, uint8_t D, uint16_t count, float* parameters, float* fit_error);
+void fit_linear_model(float *targets, float **samples, uint8_t D, uint16_t count, float *parameters, float *fit_error);
 void learn_from_file(void);
-float predict_gain(float* distribution);
+float predict_gain(float *distribution);
 void save_weights(void);
 void load_weights(void);
 
