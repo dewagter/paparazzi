@@ -228,7 +228,7 @@
     </module>
     <module name="stereocam_stereocam2state"/>   
 
-    <module name="optical_flow_landing.xml"/>
+    <module name="optical_flow_landing_mini.xml"/>
  
 
   </firmware>
