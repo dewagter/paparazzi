@@ -40,8 +40,8 @@
 
 float dt;
 float divergence;
-float divergence_vision;
-float divergence_vision_dt;
+volatile float divergence_vision;  	///< value from stereoboard
+float divergence_vision_dt;		///< divergence/dt
 float normalized_thrust;
 
 
@@ -49,8 +49,7 @@ float normalized_thrust;
 // variables for in message:
 float pstate;
 float pused;
-int vision_message_nr;
-int previous_message_nr;
+volatile int has_new_vision_message;
 int landing;
 float previous_err;
 float previous_cov_err;
@@ -232,8 +231,6 @@ void optical_flow_landing_init(void)
   dt = 0.0f;
   pstate = of_landing_ctrl.pgain;
   pused = pstate;
-  vision_message_nr = 1;
-  previous_message_nr = 0;
   of_landing_ctrl.agl_lp = 0.0f;
   landing = 0;
 
@@ -305,15 +302,16 @@ void optical_flow_landing_periodic(void)
   } else {
     // USE REAL VISION OUTPUTS:
 
-    if (vision_message_nr != previous_message_nr &&  ind_hist > 1) {
+    if (has_new_vision_message) { // (ind_hist > 1) {
 
       // TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
       // div_factor = (vz / z) - from optitrack or similar, divided by (divergence_vision / dt)
-      divergence_vision_dt = (divergence_vision * 15.0); // delta_t);
+      divergence_vision_dt = (divergence_vision * 26.0); // delta_t);
       // for Bebop2: -1.77?
-      //div_factor = -1.28f; // magic number comprising field of view etc.
+      // div_factor = -1.28f; // magic number comprising field of view etc.
       div_factor = 0.432;
 
+      // FILTER
       float new_divergence = divergence_vision_dt * div_factor; // (divergence_vision * div_factor) / dt;
 
       // if very different from the previous divergence, this is likely an outlier: input a thresholded observation into the filter:
@@ -324,7 +322,7 @@ void optical_flow_landing_periodic(void)
 
       // low-pass filter the divergence:
       divergence = divergence * of_landing_ctrl.lp_factor + (new_divergence * (1.0f - of_landing_ctrl.lp_factor));
-      previous_message_nr = vision_message_nr;
+      has_new_vision_message = 0;
 
     }
   }
@@ -349,8 +347,6 @@ void reset_all_vars(void)
   previous_err = 0.0f;
   previous_cov_err = 0.0f;
   divergence = of_landing_ctrl.divergence_setpoint;
-  vision_message_nr = 1;
-  previous_message_nr = 0;
   for (i = 0; i < COV_WINDOW_SIZE; i++) {
     thrust_history[i] = 0;
     divergence_history[i] = 0;
@@ -635,8 +631,7 @@ static void vertical_ctrl_optical_flow_cb(uint8_t sender_id __attribute__((unuse
     uint8_t quality __attribute__((unused)), float size_divergence, float dist __attribute__((unused)))
 {
   divergence_vision = size_divergence;
-  vision_message_nr++;
-  if (vision_message_nr > 10) { vision_message_nr = 0; }
+  has_new_vision_message++;
 }
 // Getting textons:
 static void vertical_ctrl_textons_cb(uint8_t sender_id __attribute__((unused)), uint8_t histogram0, uint8_t histogram1,
@@ -702,8 +697,6 @@ void guidance_v_module_enter(void)
   normalized_thrust = 0.0f;
   divergence = of_landing_ctrl.divergence_setpoint;
   dt = 0.0f;
-  vision_message_nr = 1;
-  previous_message_nr = 0;
   for (i = 0; i < COV_WINDOW_SIZE; i++) {
     thrust_history[i] = 0;
     divergence_history[i] = 0;
