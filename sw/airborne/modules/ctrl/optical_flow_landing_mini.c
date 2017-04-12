@@ -45,6 +45,8 @@ float divergence_vision_dt;		///< divergence/dt
 float normalized_thrust;
 
 
+volatile uint8_t run_control = 0;
+
 
 // variables for in message:
 float pstate;
@@ -308,6 +310,8 @@ void optical_flow_landing_periodic(void)
       of_landing_ctrl.vel = (lp_height - of_landing_ctrl.agl_lp) * 512.0;
       of_landing_ctrl.agl_lp = lp_height;
 
+      run_control = 1;
+
       // calculate the fake divergence:
       if (of_landing_ctrl.agl_lp > 0.0001f) {
         divergence = of_landing_ctrl.vel / of_landing_ctrl.agl_lp;
@@ -335,6 +339,7 @@ void optical_flow_landing_periodic(void)
       divergence = divergence * of_landing_ctrl.lp_factor + (divergence_vision_dt * (1.0f - of_landing_ctrl.lp_factor));
       has_new_vision_message = 0;
 
+      run_control = 1;
     }
   }
 }
@@ -403,6 +408,12 @@ void guidance_v_module_run(bool in_flight)
 
   } else {
 
+    if (run_control!=1)
+    {
+      return;
+    }
+
+    run_control = 0;
 
     /***********
     * CONTROL
@@ -421,7 +432,8 @@ void guidance_v_module_run(bool in_flight)
 
         // use the divergence for control:
         float err = of_landing_ctrl.divergence_setpoint - divergence;
-        int32_t thrust = nominal_throttle + of_landing_ctrl.pgain * err * MAX_PPRZ + of_landing_ctrl.igain *
+        of_landing_ctrl.sum_err += err * of_landing_ctrl.igain;
+        int32_t thrust = nominal_throttle + of_landing_ctrl.pgain * err * MAX_PPRZ +
                          of_landing_ctrl.sum_err * MAX_PPRZ;
         // make sure the p gain is logged:
         pstate = of_landing_ctrl.pgain;
@@ -454,7 +466,6 @@ void guidance_v_module_run(bool in_flight)
           thrust = 0.90 * nominal_throttle;
         }
         stabilization_cmd[COMMAND_THRUST] = thrust;
-        of_landing_ctrl.sum_err += err;
       } else if (of_landing_ctrl.CONTROL_METHOD == 1) {
 
         // **********************
@@ -486,6 +497,8 @@ void guidance_v_module_run(bool in_flight)
 
         // regulate the divergence:
         float err = of_landing_ctrl.divergence_setpoint - divergence;
+        of_landing_ctrl.sum_err += of_landing_ctrl.igain * err;
+
         pused = pstate - (of_landing_ctrl.pgain_adaptive * pstate) * error_cov;
 
         // make sure pused does not become too small, nor grows too fast:
@@ -495,7 +508,7 @@ void guidance_v_module_run(bool in_flight)
         }
 
         // set thrust:
-        int32_t thrust = nominal_throttle + pused * err * MAX_PPRZ + of_landing_ctrl.igain * of_landing_ctrl.sum_err * MAX_PPRZ;
+        int32_t thrust = nominal_throttle + pused * err * MAX_PPRZ + of_landing_ctrl.sum_err * MAX_PPRZ;
 
         // histories and cov detection:
         normalized_thrust = (float)(thrust / (MAX_PPRZ / 100));
@@ -523,7 +536,6 @@ void guidance_v_module_run(bool in_flight)
         // bound thrust:
         Bound(thrust, 0.8 * nominal_throttle, 0.75 * MAX_PPRZ); // was 0.6 0.9
         stabilization_cmd[COMMAND_THRUST] = thrust;
-        of_landing_ctrl.sum_err += err;
       } else {
 
         // SSL LANDING: use learned weights for setting the gain on the way down:
@@ -572,10 +584,11 @@ void guidance_v_module_run(bool in_flight)
         }
         */
         stabilization_cmd[COMMAND_THRUST] = thrust;
-        of_landing_ctrl.sum_err += err;
 
       }
     } else {
+      // FLARE:
+      // -----
       // land with 90% nominal thrust:
       int32_t thrust = 0.90 * nominal_throttle;
       Bound(thrust, 0.6 * nominal_throttle, 0.9 * MAX_PPRZ);
