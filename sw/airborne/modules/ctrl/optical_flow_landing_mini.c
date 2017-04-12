@@ -81,6 +81,16 @@ float weights[TEXTONS_N_TEXTONS + 1];
 // used for automated landing:
 #include "firmwares/rotorcraft/autopilot.h"
 #include "subsystems/navigation/common_flight_plan.h"
+
+// ************************
+// include textons for SSL:
+// ************************
+//#include <stdio.h>
+float last_texton_distribution[TEXTONS_N_TEXTONS];
+float texton_distribution_stereoboard[TEXTONS_N_TEXTONS];
+
+
+
 #include "subsystems/datalink/telemetry.h"
 
 // sending the divergence message to the ground station:
@@ -91,6 +101,24 @@ static void send_divergence(struct transport_tx *trans, struct link_device *dev)
                            &cov_div, &pstate, &pused, &(of_landing_ctrl.agl));
 }
 
+
+// sending the divergence message to the ground station:
+static void send_training(struct transport_tx *trans, struct link_device *dev)
+{
+  static int cnt = 0;
+  float cov_dif_send = cov_div;
+  float gain_send = pstate;
+  float extra_send = cnt++;
+
+  pprz_msg_send_TRAININGDATA(trans, dev, AC_ID,
+      &texton_distribution_stereoboard[0], &texton_distribution_stereoboard[1], &texton_distribution_stereoboard[2],
+      &texton_distribution_stereoboard[3], &texton_distribution_stereoboard[4], &texton_distribution_stereoboard[5],
+      &texton_distribution_stereoboard[6], &texton_distribution_stereoboard[7], &texton_distribution_stereoboard[8], &texton_distribution_stereoboard[9],
+      &cov_dif_send, &gain_send, &extra_send);
+
+}
+
+
 #include "generated/airframe.h"
 #include "paparazzi.h"
 #include "subsystems/abi.h"
@@ -98,13 +126,6 @@ static void send_divergence(struct transport_tx *trans, struct link_device *dev)
 
 // horizontal control:
 #include "firmwares/rotorcraft/guidance/guidance_h.h"
-
-// ************************
-// include textons for SSL:
-// ************************
-//#include <stdio.h>
-float last_texton_distribution[TEXTONS_N_TEXTONS];
-float texton_distribution_stereoboard[TEXTONS_N_TEXTONS];
 
 
 unsigned int n_read_samples;
@@ -139,7 +160,7 @@ PRINT_CONFIG_VAR(OPTICAL_FLOW_LANDING_TEXTONS_ID)
 #endif
 
 #ifndef OPTICAL_FLOW_LANDING_IGAIN
-#define OPTICAL_FLOW_LANDING_IGAIN 0.005
+#define OPTICAL_FLOW_LANDING_IGAIN 0
 #endif
 
 #ifndef OPTICAL_FLOW_LANDING_DGAIN
@@ -151,7 +172,7 @@ PRINT_CONFIG_VAR(OPTICAL_FLOW_LANDING_TEXTONS_ID)
 #endif
 
 #ifndef OPTICAL_FLOW_LANDING_CONTROL_METHOD
-#define OPTICAL_FLOW_LANDING_CONTROL_METHOD 1
+#define OPTICAL_FLOW_LANDING_CONTROL_METHOD 0
 #endif
 
 #ifndef OPTICAL_FLOW_LANDING_COV_METHOD
@@ -198,7 +219,7 @@ void optical_flow_landing_init(void)
   of_landing_ctrl.igain = OPTICAL_FLOW_LANDING_IGAIN;
   of_landing_ctrl.dgain = OPTICAL_FLOW_LANDING_DGAIN;
   of_landing_ctrl.sum_err = 0.0f;
-  of_landing_ctrl.nominal_thrust = 0.605f; //0.710f; //0.666f; // 0.640 with small battery
+  of_landing_ctrl.nominal_thrust = 0.81;
   of_landing_ctrl.VISION_METHOD = OPTICAL_FLOW_LANDING_VISION_METHOD;
   of_landing_ctrl.CONTROL_METHOD = OPTICAL_FLOW_LANDING_CONTROL_METHOD;
   of_landing_ctrl.COV_METHOD = OPTICAL_FLOW_LANDING_COV_METHOD;
@@ -251,6 +272,7 @@ void optical_flow_landing_init(void)
   AbiBindMsgTEXTONS(OPTICAL_FLOW_LANDING_TEXTONS_ID, &textons_ev, vertical_ctrl_textons_cb);
 
   register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_DIVERGENCE, send_divergence);
+  register_periodic_telemetry(DefaultPeriodic, PPRZ_MSG_ID_TRAININGDATA, send_training);
 }
 
 void optical_flow_landing_periodic(void)
@@ -306,22 +328,11 @@ void optical_flow_landing_periodic(void)
 
       // TODO: this div_factor depends on the subpixel-factor (automatically adapt?)
       // div_factor = (vz / z) - from optitrack or similar, divided by (divergence_vision / dt)
-      divergence_vision_dt = (divergence_vision * 26.0); // delta_t);
-      // for Bebop2: -1.77?
-      // div_factor = -1.28f; // magic number comprising field of view etc.
-      div_factor = 0.432;
-
-      // FILTER
-      float new_divergence = divergence_vision_dt * div_factor; // (divergence_vision * div_factor) / dt;
-
-      // if very different from the previous divergence, this is likely an outlier: input a thresholded observation into the filter:
-      if (fabs(new_divergence - divergence) > 0.20) {
-        if (new_divergence < divergence) { new_divergence = divergence - 0.10f; }
-        else { new_divergence = divergence + 0.10f; }
-      }
+      div_factor = 0.000432;
+      divergence_vision_dt = (divergence_vision * 26.0) * div_factor; // delta_t);
 
       // low-pass filter the divergence:
-      divergence = divergence * of_landing_ctrl.lp_factor + (new_divergence * (1.0f - of_landing_ctrl.lp_factor));
+      divergence = divergence * of_landing_ctrl.lp_factor + (divergence_vision_dt * (1.0f - of_landing_ctrl.lp_factor));
       has_new_vision_message = 0;
 
     }

@@ -100,8 +100,8 @@ void stereocam_to_state(void)
   int16_t dummy_int16 = 0;
   float dummy_float = 0;
 
-  DOWNLINK_SEND_OPTIC_FLOW_EST(DefaultChannel, DefaultDevice, &fps, &dummy_uint16, &dummy_uint16, &flow_x, &flow_y, &dummy_int16, &dummy_int16,
-		  &vel_x, &vel_y,&dummy_float, &dummy_float, &dummy_float);
+  RunOnceEvery(30, DOWNLINK_SEND_OPTIC_FLOW_EST(DefaultChannel, DefaultDevice, &fps, &dummy_uint16, &dummy_uint16, &flow_x, &flow_y, &dummy_int16, &dummy_int16,
+		  &vel_x, &vel_y,&dummy_float, &dummy_float, &dummy_float));
 #else
   // get the textons from the message:
   uint8_t i;
@@ -110,8 +110,9 @@ void stereocam_to_state(void)
     histogram[i] = stereocam_data.data[i];
   }
   // send to ground station:
-  DOWNLINK_SEND_TEXTONS(DefaultChannel, DefaultDevice, &histogram[0], &histogram[1], &histogram[2], &histogram[3], &histogram[4], &histogram[5],
-                             &histogram[6], &histogram[7], &histogram[8], &histogram[9]);
+
+  RunOnceEvery(30, DOWNLINK_SEND_TEXTONS(DefaultChannel, DefaultDevice, &histogram[0], &histogram[1], &histogram[2], &histogram[3], &histogram[4], &histogram[5],
+                             &histogram[6], &histogram[7], &histogram[8], &histogram[9]) );
   // broadcast internally:
   AbiSendMsgTEXTONS(STEREOCAM2STATE_SENDER_ID, histogram[0], histogram[1], histogram[2], histogram[3], histogram[4], histogram[5], histogram[6], histogram[7], histogram[8], histogram[9]);
 
@@ -125,8 +126,8 @@ void stereocam_to_state(void)
   float dummy_float = 0;
 
   // send to ground station:
-  DOWNLINK_SEND_OPTIC_FLOW_EST(DefaultChannel, DefaultDevice, &dummy_float, &dummy_uint16, &dummy_uint16, &dummy_int16, &dummy_int16, &dummy_int16, &dummy_int16,
-		  &dummy_float, &dummy_float, &divergence, &dummy_float, &dummy_float);
+  RunOnceEvery(15, DOWNLINK_SEND_OPTIC_FLOW_EST(DefaultChannel, DefaultDevice, &dummy_float, &dummy_uint16, &dummy_uint16, &dummy_int16, &dummy_int16, &dummy_int16, &dummy_int16,
+		  &dummy_float, &dummy_float, &divergence, &dummy_float, &dummy_float));
 
   // broadcast internally:
   uint32_t now_ts = get_sys_time_usec(); // include std.h?

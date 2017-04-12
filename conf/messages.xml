@@ -2209,7 +2209,7 @@
     <field name="errno"   type="uint8"/>
   </message>
 
-    <message name="TEXTONS" id="248">
+  <message name="TEXTONS" id="248">
     <field name="texton_hist0" type="uint8"/>
     <field name="texton_hist1" type="uint8"/>
     <field name="texton_hist2" type="uint8"/>
@@ -2222,7 +2222,22 @@
     <field name="texton_hist9" type="uint8"/>
   </message>
 
-  <!-- 249 is free -->
+  <message name="TRAININGDATA" id="249">
+    <field name="texton_hist0" type="float"/>
+    <field name="texton_hist1" type="float"/>
+    <field name="texton_hist2" type="float"/>
+    <field name="texton_hist3" type="float"/>
+    <field name="texton_hist4" type="float"/>
+    <field name="texton_hist5" type="float"/>
+    <field name="texton_hist6" type="float"/>
+    <field name="texton_hist7" type="float"/>
+    <field name="texton_hist8" type="float"/>
+    <field name="texton_hist9" type="float"/>
+    <field name="cov_div" type="float"> covariance of divergence and thrust, or past divergence depending on the mode (-)</field>
+    <field name="pstate" type="float"> gain state in adaptive gain control: indicative of height (-) </field>
+    <field name="extra1" type="float"> gain state in adaptive gain control: indicative of height (-) </field>
+  </message>
+
   <!-- 250 is free -->
 
    <message name="GPS_RTK" id="251">
