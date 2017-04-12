@@ -412,6 +412,10 @@ void autopilot_periodic(void)
   } else {
     guidance_v_run(autopilot_in_flight);
     guidance_h_run(autopilot_in_flight);
+
+    // CDW: mega power limit hack
+    stabilization_cmd[COMMAND_THRUST] = Min(stabilization_cmd[COMMAND_THRUST], .9 * MAX_PPRZ);
+
     SetRotorcraftCommands(stabilization_cmd, autopilot_in_flight, autopilot_motors_on);
   }
 
