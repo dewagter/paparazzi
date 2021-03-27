@@ -33,6 +33,11 @@
 #include "std.h"
 #include "modules/computer_vision/cv.h"
 
+extern uint8_t video_thread_debug;
+extern float video_thread_fps;
+extern float video_thread_fps_min;
+extern float video_thread_ms_max;
+
 extern void video_thread_init(void);
 extern void video_thread_periodic(void); ///< A dummy for now
 extern void video_thread_start(void);

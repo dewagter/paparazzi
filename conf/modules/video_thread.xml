@@ -13,6 +13,19 @@
     <define name="VIDEO_THREAD_NICE_LEVEL" value="5" description="Nice level for each separate video thread"/>
   </doc>
 
+  <settings>
+    <dl_settings>
+      <dl_settings name="thread">
+        <dl_setting var="video_thread_debug" min="0" step="1" max="1" shortname="debug" module="computer_vision/video_thread" />
+        <dl_setting var="video_thread_fps_min" min="0" step="1" max="1" shortname="FPS_min" />
+        <dl_setting var="video_thread_fps" min="0" step="1" max="1" shortname="FPS_avg" />
+        <dl_setting var="video_thread_ms_max" min="0" step="1" max="1" shortname="ms_max" />
+      </dl_settings>
+    </dl_settings>
+  </settings>
+
+
+
   <header>
     <file name="video_thread.h"/>
   </header>

@@ -70,6 +70,12 @@ PRINT_CONFIG_VAR(VIDEO_THREAD_MAX_CAMERAS)
 
 #define printf_debug    if(VIDEO_THREAD_VERBOSE > 0) printf
 
+uint8_t video_thread_debug = 0;
+float video_thread_fps = 0;
+float video_thread_fps_min = 0;
+float video_thread_ms_max = 0;
+
+
 static struct video_config_t *cameras[VIDEO_THREAD_MAX_CAMERAS] = {NULL};
 
 // Main thread
@@ -153,9 +159,21 @@ static void *video_thread_function(void *data)
 
     uint32_t time_end = get_sys_time_usec();
     uint32_t time_dt = time_end - time_begin;
-    fprintf(stdout, "[%s] vision = %i us, vid_fps=%i current fps=%f\n ",print_tag, time_dt, vid->fps, 1000000.f / frame_dt_us);
+    RunOnceEvery(100,video_thread_ms_max = 0);
+    if (time_dt/1000.0f > video_thread_ms_max) {
+      video_thread_ms_max = time_dt/1000.0f;
+    }
+    if (video_thread_debug > 0) {
+      fprintf(stdout, "[%s] vision = %i us, vid_fps=%i current fps=%f\n ",print_tag, time_dt, vid->fps, 1000000.f / frame_dt_us);
+    }
 
     // sleep (most of the) remaining time to limit to specified fps
+    float fps_temp = 1000000.f / frame_dt_us;
+    video_thread_fps = 0.95 * video_thread_fps + 0.05 * fps_temp;
+    RunOnceEvery(100,video_thread_fps_min = 90.0f);
+    if (fps_temp < video_thread_fps_min) {
+      video_thread_fps_min = fps_temp;
+    }
     if (vid->fps > 0) {
       uint32_t fps_period_us = 1000000 / vid->fps;
       if (frame_dt_us > fps_period_us + 10000) {
