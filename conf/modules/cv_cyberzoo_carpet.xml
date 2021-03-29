@@ -1,0 +1,37 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="cv_cyberzoo_carpet" dir="computer_vision">
+  <doc>
+    <description>Color Object Detector
+    Detects an object by a continuous color. Optionally draws on image.
+    
+    </description>
+    <define name="CYBERZOO_CARPET_CAMERA1" value="front_camera|bottom_camera" description="Video device to use"/>
+    <define name="CYBERZOO_CARPET_FPS1" value="0" description="Desired FPS (0: camera rate)"/>
+    <define name="CYBERZOO_CARPET_LUM_MIN1" value="0" description="Filter 1 min luminance"/>
+    <define name="CYBERZOO_CARPET_DRAW1" value="FALSE|TRUE" description="Whether or not to draw on image"/>
+
+  </doc>
+
+  <settings>
+    <dl_settings>
+      <dl_settings name="CyberzooCarpet">
+         <dl_setting var="cod_lum_min1" min="0" step="1" max="255" shortname="y_min1"/>
+         <dl_setting var="cod_draw1"  min="0" step="1" max="1" values="False|True" shortname="draw 1" />
+      </dl_settings>
+    </dl_settings>
+  </settings>
+
+  <depends>video_thread</depends>
+
+  <header>
+    <file name="cv_cyberzoo_carpet.h"/>
+  </header>
+
+  <init fun="cyberzoo_carpet_init()"/>
+  <periodic fun="cyberzoo_carpet_periodic()" freq="50"/>
+  <makefile target="ap|nps">
+    <file name="cv_cyberzoo_carpet.c"/>
+  </makefile>
+</module>
+
