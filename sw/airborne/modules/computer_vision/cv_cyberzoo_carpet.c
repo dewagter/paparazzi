@@ -117,6 +117,88 @@ void cyberzoo_carpet_init(void)
 
 }
 
+
+uint8_t HSV(uint8_t* yp, uint8_t* up, uint8_t* vp);
+uint8_t HSV(uint8_t* yp, uint8_t* up, uint8_t* vp) {
+
+  uint16_t Y = (*yp << 6);
+  int16_t  V = (*vp - 128);
+  int16_t  U = (*up - 128);
+
+  uint16_t R = (Y + 90 * V);
+  uint16_t G = (Y - 22 * U - 45 * V);
+  uint16_t B = (Y + 113 * U);
+
+  if (R > (255 << 6)) R = (255 << 6);
+  if (G > (255 << 6)) G = (255 << 6);
+  if (B > (255 << 6)) B = (255 << 6);
+
+  R = R >> 6;
+  G = G >> 6;
+  B = B >> 6;
+
+  uint8_t Vmax = R;
+  uint8_t Vmin = R;
+
+  if ( G > Vmax) Vmax = G;
+  if ( B > Vmax) Vmax = B;
+  if ( G < Vmin) Vmin = G;
+  if ( B < Vmin) Vmin = B;
+
+  uint8_t C = Vmax - Vmin;
+  uint8_t H = 0;
+
+  //uint16_t temp = C;
+  //temp = temp << 8;
+  if (Vmax < 1) Vmax = 1;
+  uint8_t S = (((uint16_t)C) << 7) / Vmax;
+
+  if (C == 0) {
+  } else if (R == Vmax) {
+    H = (((int16_t)(G-B)) << 8) / C;
+  } else if (G == Vmax) {
+    H = (((int16_t)(B-R)) << 8) / C;
+  } else if (B == Vmax) {
+    H = (((int16_t)(R-G)) << 8) / C;
+  }
+
+  return S + H;
+}
+
+
+static inline uint8_t tree(uint8_t Y, uint8_t U, uint8_t V ) {
+  if (U <= 111) {
+    if (V <= 143) {
+      if (Y <= 199) {
+        return 255;
+      } else { // Y > 199
+        return 0;
+      }
+    } else { // V > 143
+      if (V <= 146) {
+        return 0;
+      } else { // V > 146
+        return 0;
+      }
+    }
+  } else { // U > 111
+    if (U <= 115) {
+      if (V <= 132) {
+        return 255;
+      } else { // V > 132
+        return 0;
+      }
+    } else { // U > 115
+      if (U <= 117) {
+        return 0;
+      } else { // U > 117
+        return 0;
+      }
+    }
+  }
+}
+
+
 /*
  * find_carpet
  *
@@ -139,81 +221,29 @@ uint32_t find_carpet(struct image_t *img, bool draw)
     for (uint16_t x = 0; x < img->w; x += 2) {
       // Check if the color is inside the specified values
       uint8_t *yp1, *up, *vp, *yp2;
+
       // Even x
-      up  = buffer++;      // U
+      up  = buffer++;  // U
       yp1 = buffer++;  // Y1
       vp  = buffer++;  // V
-      yp2 = buffer++;
-      /*
-      if ((*yp1 > 220) || (*yp1 < 30)) {
-        *yp1 = 0;
-      }
-      */
+      yp2 = buffer++;  // Y2
 
-      uint16_t Y = (*yp1 << 6);
-      int16_t  V = (*vp - 128);
-      int16_t  U = (*up - 128);
+      // Carpet
+      uint8_t g = tree(*yp1, *up, * vp);
 
-      uint16_t R = (Y + 90 * V);
-      uint16_t G = (Y - 22 * U - 45 * V);
-      uint16_t B = (Y + 113 * U);
-
-      if (R > (255 << 6)) R = (255 << 6);
-      if (G > (255 << 6)) G = (255 << 6);
-      if (B > (255 << 6)) B = (255 << 6);
-
-      R = R >> 6;
-      G = G >> 6;
-      B = B >> 6;
-
-      uint8_t Vmax = R;
-      uint8_t Vmin = R;
-
-      if ( G > Vmax) Vmax = G;
-      if ( B > Vmax) Vmax = B;
-      if ( G < Vmin) Vmin = G;
-      if ( B < Vmin) Vmin = B;
-
-      uint8_t C = Vmax - Vmin;
-      uint8_t H = 0;
-
-      //uint16_t temp = C;
-      //temp = temp << 8;
-      if (Vmax < 1) Vmax = 1;
-      uint8_t S = (((uint16_t)C) << 7) / Vmax;
-
-      if (C == 0) {
-      } else if (R == Vmax) {
-        H = (((int16_t)(G-B)) << 8) / C;
-      } else if (G == Vmax) {
-        H = (((int16_t)(B-R)) << 8) / C;
-      } else if (B == Vmax) {
-        H = (((int16_t)(R-G)) << 8) / C;
-      }
-
-      if (C >= 0) {
-
-//      if ( 1 ) {
-        if (draw){
-          cnt++;
-          //*yp = y % 255;  // make pixel brighter in image
-          //*vp = x % 255;  // make pixel brighter in image
-          //*up = y % 255;  // make pixel brighter in image
+      if (draw) {
+        if (g > 0) {
+          *vp = 0;
         }
-
-if (draw){
-        *res++ = *up;
-        *res++ = *yp1;
-        *res++ = *vp;
-        *res++ = *yp2;
-} else {
-        *res++ = 127;
-        *res++ = S;
-        *res++ = 127;
-        *res++ = S;
-}
-
       }
+
+
+      *res++ = *up;
+      *res++ = *yp1;
+      *res++ = *vp;
+      *res++ = *yp2;
+
+
     }
     buffer += 2 * img->w;
   }
