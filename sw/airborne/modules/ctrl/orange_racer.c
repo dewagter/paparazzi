@@ -27,6 +27,7 @@
 #include "modules/ctrl/orange_racer.h"
 #include "state.h"
 #include "subsystems/radio_control.h"
+#include "firmwares/rotorcraft/navigation.h"
 #include "firmwares/rotorcraft/stabilization.h"
 #include "firmwares/rotorcraft/stabilization/stabilization_attitude.h"
 #include "firmwares/rotorcraft/stabilization/stabilization_attitude_rc_setpoint.h"
@@ -90,11 +91,17 @@ void guidance_h_module_run(bool in_flight)
   struct NedCoor_f* v = stateGetSpeedNed_f();
 
   // Flightplan
-  float heading = time / 2;
+  float heading = time / 1.2;
 
   float x_s = sin(heading) * 4;
   float y_s = -cos(heading) * 4;
 
+  navigation_carrot.x = POS_BFP_OF_REAL( y_s);
+  navigation_carrot.y = POS_BFP_OF_REAL(-x_s);
+
+  VECT2_COPY(navigation_carrot, navigation_target);
+
+  // Position error
   float dx = x_s - x->x;
   float dy = y_s - x->y;
 
