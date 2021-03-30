@@ -30,6 +30,12 @@
 
 #include "peripherals/video_device.h"
 
+extern uint8_t video_thread_debug;
+extern float video_thread_fps;
+extern float video_thread_fps_min;
+extern float video_thread_ms_max;
+
+
 #ifndef VIDEO_THREAD_MAX_CAMERAS
 #define VIDEO_THREAD_MAX_CAMERAS 4
 #endif

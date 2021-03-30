@@ -80,6 +80,11 @@ struct video_config_t bottom_camera = {
   }
 };
 
+uint8_t video_thread_debug = 0;
+float video_thread_fps = 0;
+float video_thread_fps_min = 0;
+float video_thread_ms_max = 0;
+
 // Keep track of added devices.
 struct video_config_t *cameras[VIDEO_THREAD_MAX_CAMERAS] = { NULL };
 
