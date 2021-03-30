@@ -64,6 +64,9 @@ struct color_object_t global_filters;
 
 uint32_t find_carpet(struct image_t *img, bool draw);
 
+struct image_t result;
+
+
 
 /*
  * object_detector
@@ -76,6 +79,7 @@ static struct image_t *object_detector(struct image_t *img)
 
   // Filter and find centroid
   uint32_t count = find_carpet(img, draw);
+  count ++;
   //VERBOSE_PRINT("Color count %d: %u, threshold %u, x_c %d, y_c %d\n", camera, object_count, count_threshold, x_c, y_c);
 
   pthread_mutex_lock(&mutex);
@@ -85,12 +89,20 @@ static struct image_t *object_detector(struct image_t *img)
   global_filters.updated = true;
   pthread_mutex_unlock(&mutex);
 
-  return img;
+  result.ts = img->ts;      ///< The timestamp of creation
+  result.eulers = img->eulers;   ///< Euler Angles at time of image
+  result.pprz_ts = img->pprz_ts;       ///< The timestamp in us since system startup
+  result.buf_idx = img->buf_idx;        ///< Buffer index for V4L2 freeing
+
+
+  return &result;
 }
 
 
 void cyberzoo_carpet_init(void)
 {
+  image_create(&result, 240, 260, IMAGE_YUV422);
+
   memset(&global_filters, 0, sizeof(struct color_object_t));
   pthread_mutex_init(&mutex, NULL);
 
@@ -119,31 +131,91 @@ uint32_t find_carpet(struct image_t *img, bool draw)
   uint32_t cnt = 0;
   uint8_t *buffer = img->buf;
 
+  uint8_t *res = result.buf;
+
   // Go through all the pixels
-  for (uint16_t y = 0; y < img->h; y++) {
-    for (uint16_t x = 0; x < img->w; x ++) {
+  for (uint16_t y = 0; y < img->h; y += 2) {
+    //uint16_t dy = y * 2 * img->w;
+    for (uint16_t x = 0; x < img->w; x += 2) {
       // Check if the color is inside the specified values
-      uint8_t *yp, *up, *vp;
-      if (x % 2 == 0) {
-        // Even x
-        up = &buffer[y * 2 * img->w + 2 * x];      // U
-        yp = &buffer[y * 2 * img->w + 2 * x + 1];  // Y1
-        vp = &buffer[y * 2 * img->w + 2 * x + 2];  // V
-        //yp = &buffer[y * 2 * img->w + 2 * x + 3]; // Y2
-      } else {
-        // Uneven x
-        up = &buffer[y * 2 * img->w + 2 * x - 2];  // U
-        //yp = &buffer[y * 2 * img->w + 2 * x - 1]; // Y1
-        vp = &buffer[y * 2 * img->w + 2 * x];      // V
-        yp = &buffer[y * 2 * img->w + 2 * x + 1];  // Y2
+      uint8_t *yp1, *up, *vp, *yp2;
+      // Even x
+      up  = buffer++;      // U
+      yp1 = buffer++;  // Y1
+      vp  = buffer++;  // V
+      yp2 = buffer++;
+      /*
+      if ((*yp1 > 220) || (*yp1 < 30)) {
+        *yp1 = 0;
+      }
+      */
+
+      uint16_t Y = (*yp1 << 6);
+      int16_t  V = (*vp - 128);
+      int16_t  U = (*up - 128);
+
+      uint16_t R = (Y + 90 * V);
+      uint16_t G = (Y - 22 * U - 45 * V);
+      uint16_t B = (Y + 113 * U);
+
+      if (R > (255 << 6)) R = (255 << 6);
+      if (G > (255 << 6)) G = (255 << 6);
+      if (B > (255 << 6)) B = (255 << 6);
+
+      R = R >> 6;
+      G = G >> 6;
+      B = B >> 6;
+
+      uint8_t Vmax = R;
+      uint8_t Vmin = R;
+
+      if ( G > Vmax) Vmax = G;
+      if ( B > Vmax) Vmax = B;
+      if ( G < Vmin) Vmin = G;
+      if ( B < Vmin) Vmin = B;
+
+      uint8_t C = Vmax - Vmin;
+      uint8_t H = 0;
+
+      //uint16_t temp = C;
+      //temp = temp << 8;
+      if (Vmax < 1) Vmax = 1;
+      uint8_t S = (((uint16_t)C) << 7) / Vmax;
+
+      if (C == 0) {
+      } else if (R == Vmax) {
+        H = (((int16_t)(G-B)) << 8) / C;
+      } else if (G == Vmax) {
+        H = (((int16_t)(B-R)) << 8) / C;
+      } else if (B == Vmax) {
+        H = (((int16_t)(R-G)) << 8) / C;
       }
 
-      if ( 1 ) {
+      if (C >= 0) {
+
+//      if ( 1 ) {
         if (draw){
-          *yp = 255;  // make pixel brighter in image
+          cnt++;
+          //*yp = y % 255;  // make pixel brighter in image
+          //*vp = x % 255;  // make pixel brighter in image
+          //*up = y % 255;  // make pixel brighter in image
         }
+
+if (draw){
+        *res++ = *up;
+        *res++ = *yp1;
+        *res++ = *vp;
+        *res++ = *yp2;
+} else {
+        *res++ = 127;
+        *res++ = S;
+        *res++ = 127;
+        *res++ = S;
+}
+
       }
     }
+    buffer += 2 * img->w;
   }
   return cnt;
 }
