@@ -200,6 +200,37 @@ static inline uint8_t tree(uint8_t Y, uint8_t U, uint8_t V ) {
 }
 
 
+inline static void stay_away_from_edges(int16_t *confidence, int size) {
+    for (int i=1;i < size - 1;i++) {
+
+    if (confidence[i-1] <= 1) {
+      confidence[i] = confidence[i] / 2;
+    }
+    if (confidence[i+1] <= 1) {
+      confidence[i] = confidence[i] / 2;
+    }
+
+    // Jumps
+    int16_t diff = confidence[i-1] - confidence[i];
+    if (diff < 0) diff = -diff;
+
+    if (diff > 20) {
+      confidence[i] = confidence[i] / 2;
+    };
+
+    diff = confidence[i] - confidence[i+1];
+    if (diff < 0) diff = -diff;
+
+    if (diff > 20) {
+      confidence[i] = confidence[i] / 2;
+    };
+
+  }
+
+}
+
+
+
 /*
  * find_carpet
  *
@@ -209,6 +240,7 @@ static inline uint8_t tree(uint8_t Y, uint8_t U, uint8_t V ) {
  * @param draw - whether or not to draw on image
  * @return number of pixels of image within the filter bounds.
  */
+
 float find_carpet(struct image_t *img, bool draw)
 {
   uint32_t cnt = 0;
@@ -328,25 +360,41 @@ float find_carpet(struct image_t *img, bool draw)
     confidence[i]=0;
   }
   
-  for (i=1;(i < nr_of_vec-1) && (i < MAX_VEC-1);i++) {
+  for (i=2;(i < nr_of_vec-2) && (i < MAX_VEC-2);i++) {
     // Start with a copy
     confidence[i] = vec[i];
 
     if (vec[i-1] <= 1) {
       confidence[i] = confidence[i] / 2;
     }
+    if (vec[i-2] <= 1) {
+      confidence[i] = confidence[i] / 2;
+    }
     if (vec[i+1] <= 1) {
+      confidence[i] = confidence[i] / 2;
+    }
+    if (vec[i+2] <= 1) {
       confidence[i] = confidence[i] / 2;
     }
 
     // Jumps
-    int16_t diff = vec[i-1] - vec[i];
+    int16_t diff = vec[i-2] - vec[i];
+    if (diff < 0) diff = -diff;
+
+    if (diff > 20) {
+      confidence[i] = confidence[i] / 2;
+    };
+     // Jumps
+    diff = vec[i] - vec[i+2];
     if (diff < 0) diff = -diff;
 
     if (diff > 20) {
       confidence[i] = confidence[i] / 2;
     };
   }
+
+  //stay_away_from_edges(confidence, nr_of_vec);
+  //stay_away_from_edges(confidence, nr_of_vec);
 
   ////////////////////////////////////////////////////
   // Search Maximum with moving window

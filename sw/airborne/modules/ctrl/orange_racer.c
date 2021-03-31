@@ -80,7 +80,7 @@ void guidance_h_module_read_rc(void)
   //stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
 }
 
-float race_multiplier = 0.5;
+float race_multiplier = 0.25;
 
 
 void guidance_h_module_run(bool in_flight)
