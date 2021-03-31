@@ -58,9 +58,9 @@
       <define name="CYBERZOO_CARPET_LUM_MIN1" value="30"/>
       <define name="CYBERZOO_CARPET_DRAW1" value="1"/>
     </module>
-    <module name="orange_rancer">
+    <!--module name="orange_rancer">
       <define name="ORANGE_AVOIDER_VISUAL_DETECTION_ID" value="COLOR_OBJECT_DETECTION1_ID"/>
-    </module>
+    </module-->
     <module name="video_rtp_stream">
       <define name="VIEWVIDEO_CAMERA" value="front_camera"/>
       <define name="VIEWVIDEO_FPS" value="5"/>

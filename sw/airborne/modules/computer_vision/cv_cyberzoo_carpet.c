@@ -89,19 +89,19 @@ static struct image_t *object_detector(struct image_t *img)
   global_filters.updated = true;
   pthread_mutex_unlock(&mutex);
 
+  /*
   result.ts = img->ts;      ///< The timestamp of creation
   result.eulers = img->eulers;   ///< Euler Angles at time of image
   result.pprz_ts = img->pprz_ts;       ///< The timestamp in us since system startup
   result.buf_idx = img->buf_idx;        ///< Buffer index for V4L2 freeing
-
-
-  return &result;
+  */
+  return img; //&result;
 }
 
 
 void cyberzoo_carpet_init(void)
 {
-  image_create(&result, 240, 260, IMAGE_YUV422);
+  //image_create(&result, 240, 260, IMAGE_YUV422);
 
   memset(&global_filters, 0, sizeof(struct color_object_t));
   pthread_mutex_init(&mutex, NULL);
@@ -213,20 +213,28 @@ uint32_t find_carpet(struct image_t *img, bool draw)
   uint32_t cnt = 0;
   uint8_t *buffer = img->buf;
 
-  uint8_t *res = result.buf;
+  //uint8_t *res = result.buf;
+  uint8_t *max = img->buf;
+  max += img->buf_size;
 
   // Go through all the pixels
-  for (uint16_t y = 0; y < img->h; y += 2) {
+  for (uint16_t y = 0; y < img->h; y += 1) {
     //uint16_t dy = y * 2 * img->w;
     for (uint16_t x = 0; x < img->w; x += 2) {
       // Check if the color is inside the specified values
-      uint8_t *yp1, *up, *vp, *yp2;
+      uint8_t *yp1, *up, *vp; //, *yp2;
 
       // Even x
       up  = buffer++;  // U
       yp1 = buffer++;  // Y1
       vp  = buffer++;  // V
-      yp2 = buffer++;  // Y2
+      //yp2 = 
+      buffer++;  // Y2
+
+      if (buffer > max) {
+        fprintf(stderr,"[carpetland] P=(%d,%d) OUT_OF_BUFFER\n", x,y);
+        return cnt;
+      }
 
       // Carpet
       uint8_t g = tree(*yp1, *up, * vp);
@@ -237,15 +245,15 @@ uint32_t find_carpet(struct image_t *img, bool draw)
         }
       }
 
-
+/*
       *res++ = *up;
       *res++ = *yp1;
       *res++ = *vp;
       *res++ = *yp2;
-
+*/
 
     }
-    buffer += 2 * img->w;
+    //buffer += 2 * img->w;
   }
   return cnt;
 }
