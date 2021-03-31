@@ -74,6 +74,7 @@ void guidance_h_module_read_rc(void)
 
 
 float time = 0;
+float accelerator = 1.0;
 
 void guidance_h_module_run(bool in_flight)
 {
@@ -81,20 +82,25 @@ void guidance_h_module_run(bool in_flight)
   // ctrl.cmd = CallMyNewHorizontalOuterloopControl(ctrl);
 
   time += 0.002;
+  accelerator -= 0.00002;
+  if (accelerator < 0.1) accelerator = 0.1;
 
   // Import state
-  float phi = stateGetNedToBodyEulers_f()->phi;
-  float theta = stateGetNedToBodyEulers_f()->theta;
+  //float phi = stateGetNedToBodyEulers_f()->phi;
+  //float theta = stateGetNedToBodyEulers_f()->theta;
   float psi = stateGetNedToBodyEulers_f()->psi;
 
   struct NedCoor_f* x = stateGetPositionNed_f();
   struct NedCoor_f* v = stateGetSpeedNed_f();
 
   // Flightplan
-  float heading = time / 1.2;
+  float heading = time / accelerator;
 
-  float x_s = sin(heading) * 4;
-  float y_s = -cos(heading) * 4;
+  float radius = 5.0;
+  float vff = radius / 3;
+
+  float x_s = sin(heading) * radius;
+  float y_s = -cos(heading) * radius;
 
   navigation_carrot.x = POS_BFP_OF_REAL( y_s);
   navigation_carrot.y = POS_BFP_OF_REAL(-x_s);
@@ -112,12 +118,14 @@ void guidance_h_module_run(bool in_flight)
 
   // Position Loop (Body)
   #define X_K_P 0.5
-  float vx_s_b = ( dx_b ) * X_K_P;
+  float vx_s_b = ( dx_b ) * X_K_P + vff;
   float vy_s_b = ( dy_b ) * X_K_P;
 
   // Global velociy
 	double vx_b =  cos(psi) * v->x + sin(psi) * v->y;
 	double vy_b = -sin(psi) * v->x + cos(psi) * v->y;
+
+  double vtot = sqrt(vx_b*vx_b + vy_b*vy_b);
 
   // Speed loop
   float dvx = vx_s_b - vx_b;
@@ -127,17 +135,17 @@ void guidance_h_module_run(bool in_flight)
 	// new_roll += -atan(vel_x_est_velFrame / 9.81 * this->yaw_rate_cmd);
 
 
-#define V_K_FF 0.02
-#define V_K_P  0.9
+#define V_K_FF 0.027
+#define V_K_P  0.8
 
   float roll = dvy * V_K_P + V_K_FF * vy_s_b;
   float pitch = - dvx * V_K_P - V_K_FF * vx_s_b;
 
-  fprintf(stderr, "VX = (%f,%f), psi = %f, dv=(%f,%f)\n", v->x, v->y, psi, dvx, dvy  );
+  fprintf(stderr, "Vtot=(%f), psi = %f, dv=(%f,%f)\n", vtot, psi, dvx, dvy  );
 
 
-  BoundAbs(roll,RadOfDeg(35));
-  BoundAbs(pitch,RadOfDeg(35));
+  BoundAbs(roll,RadOfDeg(32));
+  BoundAbs(pitch,RadOfDeg(32));
 
   ctrl.cmd.phi = ANGLE_BFP_OF_REAL(roll);
   ctrl.cmd.theta = ANGLE_BFP_OF_REAL(pitch);
