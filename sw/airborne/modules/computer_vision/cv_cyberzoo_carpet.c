@@ -352,13 +352,17 @@ float find_carpet(struct image_t *img, bool draw)
   // Search Maximum with moving window
   int8_t best_direction = 0;
   int16_t best_score = 0;
-  for (i=2;(i < nr_of_vec-2) && (i < MAX_VEC-2);i++) {
+  for (i=4;(i < nr_of_vec-4) && (i < MAX_VEC-4);i++) {
     // Start with a copy
-    int16_t sum = confidence[i-2]
+    int16_t sum =  confidence[i-4]
+                 + confidence[i-3]
+                 + confidence[i-2]
                  + confidence[i-1]
                  + confidence[i]
                  + confidence[i+1]
-                 + confidence[i+2];
+                 + confidence[i+2]
+                 + confidence[i+3]
+                 + confidence[i+4];
     if (sum > best_score) {
       best_score = sum;
       best_direction = i;

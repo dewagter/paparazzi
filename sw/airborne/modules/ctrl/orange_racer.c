@@ -80,40 +80,11 @@ void guidance_h_module_read_rc(void)
   //stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
 }
 
+float race_multiplier = 0.5;
 
 
 void guidance_h_module_run(bool in_flight)
 {
-  static float accelerator = 1.0;
-  static float filtx = 0;
-  static float filty = 0;
-  fprintf(stdout,"[orange_racer] RUN: dir = %f cert  =%f\n",  carpet_land_direction, carpet_land_certainty);
-  // YOUR NEW HORIZONTAL OUTERLOOP CONTROLLER GOES HERE
-  // ctrl.cmd = CallMyNewHorizontalOuterloopControl(ctrl);
-
-  float multiplier = 1.5;
-
-  float speedx = 1.0; // carpet_land_certainty / 500.0 * 0.5;
-  if (carpet_land_certainty <  20) {
-    speedx = 0.5;
-    ctrl.heading += 0.002;
-  } else  if (carpet_land_certainty <  40) {
-    speedx = 0.75;
-    ctrl.heading += (0.001 + carpet_land_direction * 0.0008) * multiplier;
-  } else {
-    ctrl.heading += (carpet_land_direction * 0.0008) * multiplier;
-  }
-  float speedy = 0 ; // speedx * carpet_land_direction / 2.0;
-
-  speedx *= multiplier;
-
-
-  fprintf(stdout,"[orange_racer]  v_s = %f, %f psi = %f\n",  speedx, speedy, ctrl.heading);
-
-
-  //ctrl.time += 0.002;
-  //accelerator -= 0.00002;
-  //if (accelerator < 0.1) accelerator = 0.1;
 
   // Import state
   //float phi = stateGetNedToBodyEulers_f()->phi;
@@ -122,6 +93,57 @@ void guidance_h_module_run(bool in_flight)
 
   struct NedCoor_f* x = stateGetPositionNed_f();
   struct NedCoor_f* v = stateGetSpeedNed_f();
+
+
+  //static float accelerator = 1.0;
+  static float filtx = 0;
+  static float filty = 0;
+  //fprintf(stdout,"[orange_racer] RUN: dir = %f cert  =%f\n",  carpet_land_direction, carpet_land_certainty);
+  // YOUR NEW HORIZONTAL OUTERLOOP CONTROLLER GOES HERE
+  // ctrl.cmd = CallMyNewHorizontalOuterloopControl(ctrl);
+
+  float multiplier = race_multiplier;
+
+  float dist_center = sqrt(x->x*x->x + x->y*x->y);
+  float bearing = atan2(x->y, x->x);
+  float dhead = bearing - psi;
+
+  if (dhead < 0) dhead = -dhead;
+  dhead = DegOfRad(dhead);
+ 
+  fprintf(stdout,"[orange_racer] d=%f  bear = %f psi = %f   dg=%f \n",  dist_center, bearing, psi, dhead);
+
+ float certainty = carpet_land_certainty;
+  if (dist_center > 3.7) {
+    if (dhead < 110)
+      certainty = 39;
+  } else if (dist_center > 2.5) {
+    if (dhead < 110)
+      certainty = 79;
+  }
+
+  float speedx = 1.0; // certainty / 500.0 * 0.5;
+  if (certainty <  50) {
+    speedx = 0.5;
+    ctrl.heading += 0.002;
+  } else  if (certainty <  100) {
+    speedx = 0.75;
+    ctrl.heading += (0.004 + carpet_land_direction * 0.0008) * multiplier;
+  } else {
+    ctrl.heading += (carpet_land_direction * 0.0025) * multiplier;
+  }
+  float speedy = 0; //speedx * carpet_land_direction / 1.5;
+
+  speedx *= multiplier;
+
+
+
+  //fprintf(stdout,"[orange_racer]  v_s = %f, %f psi = %f\n",  speedx, speedy, ctrl.heading);
+
+
+  //ctrl.time += 0.002;
+  //accelerator -= 0.00002;
+  //if (accelerator < 0.1) accelerator = 0.1;
 
   // Flightplan
   float heading = 0; //ctrl.time / accelerator;
@@ -153,8 +175,8 @@ void guidance_h_module_run(bool in_flight)
   float vy_s_b = ( dy_b ) * X_K_P;
 
 
-  filtx += (speedx - filtx) / 100;
-  filty += (speedy - filty) / 100;
+  filtx += (speedx - filtx) / 40;
+  filty += (speedy - filty) / 40;
 
   vx_s_b = filtx;
   vy_s_b = filty;
@@ -173,8 +195,8 @@ void guidance_h_module_run(bool in_flight)
 	// new_roll += -atan(vel_x_est_velFrame / 9.81 * this->yaw_rate_cmd);
 
 
-#define V_K_FF 0.01
-#define V_K_P  0.5
+#define V_K_FF 0.02
+#define V_K_P  0.9
 
   float roll = dvy * V_K_P + V_K_FF * vy_s_b;
   float pitch = - dvx * V_K_P - V_K_FF * vx_s_b;

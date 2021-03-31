@@ -6,6 +6,13 @@
         Monocular Avoid Race Control Module.
     </description>
   </doc>
+  <settings>
+    <dl_settings>
+      <dl_settings NAME="Racer">
+        <dl_setting var="race_multiplier" min="0.01" step="0.01" max="3.0" module="ctrl/orange_racer" shortname="speed"/>
+      </dl_settings>
+    </dl_settings>
+  </settings>
 
   <header>
     <file name="orange_racer.h"/>
