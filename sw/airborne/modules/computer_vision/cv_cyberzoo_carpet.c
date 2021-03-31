@@ -62,10 +62,12 @@ struct color_object_t {
 struct color_object_t global_filters;
 
 
-uint32_t find_carpet(struct image_t *img, bool draw);
+float find_carpet(struct image_t *img, bool draw);
 
-struct image_t result;
+//struct image_t result;
 
+volatile float carpet_land_direction = 0;
+volatile float carpet_land_certainty = 0;
 
 
 /*
@@ -78,8 +80,7 @@ static struct image_t *object_detector(struct image_t *img)
   bool draw = cod_draw1;
 
   // Filter and find centroid
-  uint32_t count = find_carpet(img, draw);
-  count ++;
+  find_carpet(img, draw);
   //VERBOSE_PRINT("Color count %d: %u, threshold %u, x_c %d, y_c %d\n", camera, object_count, count_threshold, x_c, y_c);
 
   pthread_mutex_lock(&mutex);
@@ -208,10 +209,13 @@ static inline uint8_t tree(uint8_t Y, uint8_t U, uint8_t V ) {
  * @param draw - whether or not to draw on image
  * @return number of pixels of image within the filter bounds.
  */
-uint32_t find_carpet(struct image_t *img, bool draw)
+float find_carpet(struct image_t *img, bool draw)
 {
   uint32_t cnt = 0;
   uint8_t *buffer = img->buf;
+
+  ////////////////////////////////////////////////////
+  // Discision Tree Classifier
 
   //uint8_t *res = result.buf;
   uint8_t *max = img->buf;
@@ -248,14 +252,20 @@ uint32_t find_carpet(struct image_t *img, bool draw)
     //buffer += 2 * img->w;
   }
 
+  ////////////////////////////////////////////////////
+  // Bottom up grass search
+
+  // Vector of grass
   #define MAX_VEC 52
+  uint8_t nr_of_vec = 0;
   int16_t vec[MAX_VEC];
+
   int8_t i = 0;
   uint16_t h2 = img->w / 2;
+  uint16_t row_offset = img->w * 2;
   for (uint16_t y = 10; y < img->h; y += 10) {
     // Row offset
     buffer = img->buf;
-    uint16_t row_offset = img->w * 2;
     buffer += y * row_offset;
     // Carpet byte offset
 
@@ -265,7 +275,7 @@ uint32_t find_carpet(struct image_t *img, bool draw)
     for (uint16_t x = 0; x < h2; x+=2 ) {
       if (buffer > max) {
         fprintf(stderr,"[carpetland] P=(%d,%d) OUT_OF_BUFFER 2\n", x,y);
-        return cnt;
+        return 0;
       }
       uint8_t m = buffer[2];
 
@@ -294,27 +304,98 @@ uint32_t find_carpet(struct image_t *img, bool draw)
     // Store height of grass
     vec[i] = height;
     i++;
-    if (i >= MAX_VEC) {
+    // Store how many vecs we have
+    nr_of_vec = i;
+    if (i > MAX_VEC) {
       fprintf(stderr,"[carpetland] i=(%d) OUT_OF_BUFFER 3\n", i);
-      return cnt;
+      break;
     }
     // Draw line
     buffer = img->buf;
     buffer += y * img->w * 2;
     for (int16_t x=0;x<height;x++) {
-      buffer[1] = 255;
+      //buffer[1] = 255;
       //buffer[1+row_offset] = 255;
       buffer += 2;
     }
   }
 
-  cnt = 0;
-  for (i=0;i<MAX_VEC;i++) {
-    cnt += vec[i];
+  ////////////////////////////////////////////////////
+  // Confidence Search
+  
+  int16_t confidence[MAX_VEC];
+  for (i=0;i < MAX_VEC;i++) {
+    confidence[i]=0;
+  }
+  
+  for (i=1;(i < nr_of_vec-1) && (i < MAX_VEC-1);i++) {
+    // Start with a copy
+    confidence[i] = vec[i];
+
+    if (vec[i-1] <= 1) {
+      confidence[i] = confidence[i] / 2;
+    }
+    if (vec[i+1] <= 1) {
+      confidence[i] = confidence[i] / 2;
+    }
+
+    // Jumps
+    int16_t diff = vec[i-1] - vec[i];
+    if (diff < 0) diff = -diff;
+
+    if (diff > 20) {
+      confidence[i] = confidence[i] / 2;
+    };
+  }
+
+  ////////////////////////////////////////////////////
+  // Search Maximum with moving window
+  int8_t best_direction = 0;
+  int16_t best_score = 0;
+  for (i=2;(i < nr_of_vec-2) && (i < MAX_VEC-2);i++) {
+    // Start with a copy
+    int16_t sum = confidence[i-2]
+                 + confidence[i-1]
+                 + confidence[i]
+                 + confidence[i+1]
+                 + confidence[i+2];
+    if (sum > best_score) {
+      best_score = sum;
+      best_direction = i;
+    }
   }
 
 
-  return cnt;
+  // Draw confidence line
+  i = 0;
+  for (uint16_t y = 10+1; y < img->h; y += 10) {
+    // Row offset
+    buffer = img->buf;
+    buffer += y * row_offset;
+    // Draw line
+    buffer = img->buf;
+    buffer += y * img->w * 2;
+    for (int16_t x=0;x<confidence[i];x++) {
+      buffer[1] = 255;
+      if (i == best_direction) {
+        buffer[0] = 255;
+        buffer[1] = 255;
+        buffer[0+row_offset] = 255;
+        buffer[1+row_offset] = 255;
+        buffer[0-row_offset] = 255;
+        buffer[1-row_offset] = 255;
+      }
+      buffer += 2;
+    }
+    i++;
+  }
+
+  // Scale direction from -1 -> 1 and export
+  float hnvf = ((float) nr_of_vec) / 2.0f;
+  float dir = ((float) best_direction - hnvf) / hnvf;
+  carpet_land_direction = dir;
+  carpet_land_certainty = ((float)best_score);
+  return 0;
 }
 
 void cyberzoo_carpet_periodic(void)

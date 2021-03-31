@@ -33,6 +33,8 @@
 //#include "firmwares/rotorcraft/stabilization/stabilization_attitude_rc_setpoint.h"
 #include "autopilot.h"
 
+#include "modules/computer_vision/cv_cyberzoo_carpet.h"
+
 #include <stdio.h>
 
 // Own Variables
@@ -40,6 +42,8 @@
 struct ctrl_module_demo_struct {
   // Time counter
   float time;
+
+  float heading;
 
   // Output command
   struct Int32Eulers cmd;
@@ -56,6 +60,7 @@ struct ctrl_module_demo_struct {
 void guidance_h_module_init(void)
 {
   ctrl.time = 0;
+  ctrl.heading = 0;
 
   fprintf(stdout,"[orange_racer] INIT\n");
 }
@@ -64,7 +69,7 @@ void guidance_h_module_enter(void)
 {
   fprintf(stdout,"[orange_racer] ENTER\n");
   // Store current heading
-  ctrl.cmd.psi = stateGetNedToBodyEulers_i()->psi;
+  ctrl.heading = stateGetNedToBodyEulers_f()->psi;
 
   // Convert RC to setpoint
   //stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
@@ -80,13 +85,35 @@ void guidance_h_module_read_rc(void)
 void guidance_h_module_run(bool in_flight)
 {
   static float accelerator = 1.0;
-  fprintf(stdout,"[orange_racer] RUN\n");
+  static float filtx = 0;
+  static float filty = 0;
+  fprintf(stdout,"[orange_racer] RUN: dir = %f cert  =%f\n",  carpet_land_direction, carpet_land_certainty);
   // YOUR NEW HORIZONTAL OUTERLOOP CONTROLLER GOES HERE
   // ctrl.cmd = CallMyNewHorizontalOuterloopControl(ctrl);
 
-  ctrl.time += 0.002;
-  accelerator -= 0.00002;
-  if (accelerator < 0.1) accelerator = 0.1;
+  float multiplier = 1.5;
+
+  float speedx = 1.0; // carpet_land_certainty / 500.0 * 0.5;
+  if (carpet_land_certainty <  20) {
+    speedx = 0.5;
+    ctrl.heading += 0.002;
+  } else  if (carpet_land_certainty <  40) {
+    speedx = 0.75;
+    ctrl.heading += (0.001 + carpet_land_direction * 0.0008) * multiplier;
+  } else {
+    ctrl.heading += (carpet_land_direction * 0.0008) * multiplier;
+  }
+  float speedy = 0 ; // speedx * carpet_land_direction / 2.0;
+
+  speedx *= multiplier;
+
+
+  fprintf(stdout,"[orange_racer]  v_s = %f, %f psi = %f\n",  speedx, speedy, ctrl.heading);
+
+
+  //ctrl.time += 0.002;
+  //accelerator -= 0.00002;
+  //if (accelerator < 0.1) accelerator = 0.1;
 
   // Import state
   //float phi = stateGetNedToBodyEulers_f()->phi;
@@ -97,7 +124,8 @@ void guidance_h_module_run(bool in_flight)
   struct NedCoor_f* v = stateGetSpeedNed_f();
 
   // Flightplan
-  float heading = ctrl.time / accelerator;
+  float heading = 0; //ctrl.time / accelerator;
+  heading = ctrl.heading;
 
   float radius = 5.0;
   float vff = radius / 3;
@@ -124,6 +152,13 @@ void guidance_h_module_run(bool in_flight)
   float vx_s_b = ( dx_b ) * X_K_P + vff;
   float vy_s_b = ( dy_b ) * X_K_P;
 
+
+  filtx += (speedx - filtx) / 100;
+  filty += (speedy - filty) / 100;
+
+  vx_s_b = filtx;
+  vy_s_b = filty;
+
   // Global velociy
 	double vx_b =  cos(psi) * v->x + sin(psi) * v->y;
 	double vy_b = -sin(psi) * v->x + cos(psi) * v->y;
@@ -138,13 +173,13 @@ void guidance_h_module_run(bool in_flight)
 	// new_roll += -atan(vel_x_est_velFrame / 9.81 * this->yaw_rate_cmd);
 
 
-#define V_K_FF 0.027
-#define V_K_P  0.8
+#define V_K_FF 0.01
+#define V_K_P  0.5
 
   float roll = dvy * V_K_P + V_K_FF * vy_s_b;
   float pitch = - dvx * V_K_P - V_K_FF * vx_s_b;
 
-  fprintf(stderr, "Vtot=(%f), psi = %f, dv=(%f,%f)\n", vtot, psi, dvx, dvy  );
+  //fprintf(stderr, "Vtot=(%f), psi = %f, dv=(%f,%f)\n", vtot, psi, dvx, dvy  );
 
 
   BoundAbs(roll,RadOfDeg(32));

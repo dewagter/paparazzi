@@ -35,6 +35,10 @@ extern uint8_t cod_lum_min1;
 
 extern bool cod_draw1;
 
+// Module output
+extern volatile float carpet_land_direction;
+extern volatile float carpet_land_certainty;
+
 // Module functions
 extern void cyberzoo_carpet_init(void);
 extern void cyberzoo_carpet_periodic(void);
