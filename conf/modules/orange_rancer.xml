@@ -6,13 +6,6 @@
         Monocular Avoid Race Control Module.
     </description>
   </doc>
-  <settings>
-    <dl_settings>
-      <dl_settings NAME="CtrlRace">
-        <dl_setting var="comode_time" min="0" step="0.01" max="3" module="ctrl/orange_racer" shortname="time"/>
-      </dl_settings>
-    </dl_settings>
-  </settings>
 
   <header>
     <file name="orange_racer.h"/>

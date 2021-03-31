@@ -244,17 +244,76 @@ uint32_t find_carpet(struct image_t *img, bool draw)
           *vp = 0;
         }
       }
-
-/*
-      *res++ = *up;
-      *res++ = *yp1;
-      *res++ = *vp;
-      *res++ = *yp2;
-*/
-
     }
     //buffer += 2 * img->w;
   }
+
+  #define MAX_VEC 52
+  int16_t vec[MAX_VEC];
+  int8_t i = 0;
+  uint16_t h2 = img->w / 2;
+  for (uint16_t y = 10; y < img->h; y += 10) {
+    // Row offset
+    buffer = img->buf;
+    uint16_t row_offset = img->w * 2;
+    buffer += y * row_offset;
+    // Carpet byte offset
+
+    uint16_t height = 0;
+    uint16_t cnt_col = 0;
+    uint16_t cnt_none = 0;
+    for (uint16_t x = 0; x < h2; x+=2 ) {
+      if (buffer > max) {
+        fprintf(stderr,"[carpetland] P=(%d,%d) OUT_OF_BUFFER 2\n", x,y);
+        return cnt;
+      }
+      uint8_t m = buffer[2];
+
+
+      // If grass
+      if (m == 0) {
+        cnt_none = 0;
+        cnt_col ++;
+        // Check pixels next to this one
+        if (buffer[2 + row_offset] == 0) {
+          cnt ++;
+        }
+      } else {
+        cnt_none ++;
+        if (cnt_none > 25) {
+          break;
+        }
+        cnt_col = 0;
+      }
+      if (cnt_col > 5) {
+        height = x;
+      }
+
+      buffer += 4;
+    }
+    // Store height of grass
+    vec[i] = height;
+    i++;
+    if (i >= MAX_VEC) {
+      fprintf(stderr,"[carpetland] i=(%d) OUT_OF_BUFFER 3\n", i);
+      return cnt;
+    }
+    // Draw line
+    buffer = img->buf;
+    buffer += y * img->w * 2;
+    for (int16_t x=0;x<height;x++) {
+      buffer[1] = 255;
+      //buffer[1+row_offset] = 255;
+      buffer += 2;
+    }
+  }
+
+  cnt = 0;
+  for (i=0;i<MAX_VEC;i++) {
+    cnt += vec[i];
+  }
+
+
   return cnt;
 }
 

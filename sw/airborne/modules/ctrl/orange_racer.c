@@ -26,11 +26,11 @@
 
 #include "modules/ctrl/orange_racer.h"
 #include "state.h"
-#include "subsystems/radio_control.h"
+//#include "subsystems/radio_control.h"
 #include "firmwares/rotorcraft/navigation.h"
 #include "firmwares/rotorcraft/stabilization.h"
 #include "firmwares/rotorcraft/stabilization/stabilization_attitude.h"
-#include "firmwares/rotorcraft/stabilization/stabilization_attitude_rc_setpoint.h"
+//#include "firmwares/rotorcraft/stabilization/stabilization_attitude_rc_setpoint.h"
 #include "autopilot.h"
 
 #include <stdio.h>
@@ -38,17 +38,16 @@
 // Own Variables
 
 struct ctrl_module_demo_struct {
-// RC Inputs
-  struct Int32Eulers rc_sp;
+  // Time counter
+  float time;
 
-// Output command
+  // Output command
   struct Int32Eulers cmd;
 
 } ctrl;
 
-
 // Settings
-float comode_time = 0;
+//float comode_time = 0;
 
 
 ////////////////////////////////////////////////////////////////////
@@ -56,32 +55,36 @@ float comode_time = 0;
 // Implement own Horizontal loops
 void guidance_h_module_init(void)
 {
+  ctrl.time = 0;
+
+  fprintf(stdout,"[orange_racer] INIT\n");
 }
 
 void guidance_h_module_enter(void)
 {
+  fprintf(stdout,"[orange_racer] ENTER\n");
   // Store current heading
   ctrl.cmd.psi = stateGetNedToBodyEulers_i()->psi;
 
   // Convert RC to setpoint
-  stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
+  //stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
 }
 
 void guidance_h_module_read_rc(void)
 {
-  stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
+  //stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
 }
 
 
-float time = 0;
-float accelerator = 1.0;
 
 void guidance_h_module_run(bool in_flight)
 {
+  static float accelerator = 1.0;
+  fprintf(stdout,"[orange_racer] RUN\n");
   // YOUR NEW HORIZONTAL OUTERLOOP CONTROLLER GOES HERE
   // ctrl.cmd = CallMyNewHorizontalOuterloopControl(ctrl);
 
-  time += 0.002;
+  ctrl.time += 0.002;
   accelerator -= 0.00002;
   if (accelerator < 0.1) accelerator = 0.1;
 
@@ -94,7 +97,7 @@ void guidance_h_module_run(bool in_flight)
   struct NedCoor_f* v = stateGetSpeedNed_f();
 
   // Flightplan
-  float heading = time / accelerator;
+  float heading = ctrl.time / accelerator;
 
   float radius = 5.0;
   float vff = radius / 3;
@@ -153,7 +156,7 @@ void guidance_h_module_run(bool in_flight)
 
   stabilization_attitude_set_rpy_setpoint_i(&(ctrl.cmd));
   stabilization_attitude_run(in_flight);
-
+/**/
   // Alternatively, use the indi_guidance and send AbiMsgACCEL_SP to it instead of setting pitch and roll
 }
 

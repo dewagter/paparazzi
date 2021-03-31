@@ -48,6 +48,7 @@
       <define name="VIDEO_CAPTURE_CAMERA" value="front_camera"/>
       <define name="VIDEO_CAPTURE_FPS" value="5"/>
     </module>
+    <module name="orange_rancer" />
     <!--module name="cv_opencvdemo">
       <define name="OPENCVDEMO_CAMERA" value="front_camera"/>
       <define name="OPENCVDEMO_FPS" value="0"/>

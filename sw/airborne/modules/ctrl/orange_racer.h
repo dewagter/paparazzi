@@ -30,7 +30,7 @@
 #include <std.h>
 
 // Settings
-extern float comode_time;
+//extern float comode_time;
 
 // Demo with own guidance_h
 #define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_MODULE
