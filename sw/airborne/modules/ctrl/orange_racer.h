@@ -31,6 +31,7 @@
 
 // Settings
 extern float race_multiplier;
+extern float race_radius;
 
 // Demo with own guidance_h
 #define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_MODULE

@@ -10,6 +10,7 @@
     <dl_settings>
       <dl_settings NAME="Racer">
         <dl_setting var="race_multiplier" min="0.01" step="0.01" max="3.0" module="ctrl/orange_racer" shortname="speed"/>
+        <dl_setting var="race_radius" min="0.01" step="0.01" max="6.0" module="ctrl/orange_racer" shortname="radius"/>
       </dl_settings>
     </dl_settings>
   </settings>

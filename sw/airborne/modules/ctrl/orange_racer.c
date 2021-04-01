@@ -81,6 +81,7 @@ void guidance_h_module_read_rc(void)
 }
 
 float race_multiplier = 0.25;
+float race_radius = 3;
 
 
 void guidance_h_module_run(bool in_flight)
@@ -166,10 +167,10 @@ void guidance_h_module_run(bool in_flight)
 
   // Flightplan
   float heading = ctrl.time;
-  heading = ctrl.heading;
+  //heading = ctrl.heading;
 
-  float radius = 2.5;
-  float vff = radius / 5;
+  float radius = race_radius;
+  float vff = 0;//radius / 5;
 
   float x_s = sin(heading) * radius;
   float y_s = -cos(heading) * radius;
@@ -202,8 +203,8 @@ void guidance_h_module_run(bool in_flight)
   filtx += (speedx - filtx) / 30;
   filty += (speedy - filty) / 30;
 
-  vx_s_b = filtx;
-  vy_s_b = filty;
+  //vx_s_b = filtx;
+  //vy_s_b = filty;
 
   // Global velociy
 	double vx_b =  cos(psi) * v->x + sin(psi) * v->y;
