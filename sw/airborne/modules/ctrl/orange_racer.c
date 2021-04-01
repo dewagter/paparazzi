@@ -145,6 +145,12 @@ void guidance_h_module_run(bool in_flight)
   }
   float speedy = 0; //speedx * carpet_land_direction / 1.5;
 
+  if (danger < 5) {
+    certainty = 10;    
+    speedx = -0.05;
+  }
+
+
   speedx *= multiplier;
 
 
@@ -193,8 +199,8 @@ void guidance_h_module_run(bool in_flight)
 
   // DEFINE RACE
 
-  filtx += (speedx - filtx) / 40;
-  filty += (speedy - filty) / 40;
+  filtx += (speedx - filtx) / 60;
+  filty += (speedy - filty) / 60;
 
   vx_s_b = filtx;
   vy_s_b = filty;
@@ -223,7 +229,7 @@ void guidance_h_module_run(bool in_flight)
 
 #define V_K_FF 0.00
 #define V_K_P  0.3
-#define V_K_D  0.03
+#define V_K_D  0.05
 #define V_K_I  0.0001
 
   integralx += dvx * V_K_I;

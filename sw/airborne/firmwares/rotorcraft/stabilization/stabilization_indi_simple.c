@@ -338,15 +338,16 @@ void stabilization_indi_rate_run(struct FloatRates rate_sp, bool in_flight __att
 
   //bound the total control input
 #if STABILIZATION_INDI_FULL_AUTHORITY
+#warning FULL
   Bound(indi.u_in.p, -9600, 9600);
   Bound(indi.u_in.q, -9600, 9600);
   float rlim = 9600 - fabs(indi.u_in.q);
   Bound(indi.u_in.r, -rlim, rlim);
-  Bound(indi.u_in.r, -9600, 9600);
+  Bound(indi.u_in.r, -3500, 3500);
 #else
-  Bound(indi.u_in.p, -4500, 4500);
-  Bound(indi.u_in.q, -4500, 4500);
-  Bound(indi.u_in.r, -4500, 4500);
+  Bound(indi.u_in.p, -4000, 4000);
+  Bound(indi.u_in.q, -4000, 4000);
+  Bound(indi.u_in.r, -3500, 3500);
 #endif
 
   //Propagate input filters
