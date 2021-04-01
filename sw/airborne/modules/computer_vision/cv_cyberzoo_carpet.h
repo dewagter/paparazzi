@@ -38,6 +38,7 @@ extern bool cod_draw1;
 // Module output
 extern volatile float carpet_land_direction;
 extern volatile float carpet_land_certainty;
+extern volatile float carpet_land_colliding;
 
 // Module functions
 extern void cyberzoo_carpet_init(void);

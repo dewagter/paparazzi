@@ -68,6 +68,7 @@ float find_carpet(struct image_t *img, bool draw);
 
 volatile float carpet_land_direction = 0;
 volatile float carpet_land_certainty = 0;
+volatile float carpet_land_colliding; = 0;
 
 
 /*
@@ -417,6 +418,11 @@ float find_carpet(struct image_t *img, bool draw)
     }
   }
 
+  int16_t total = 0;
+  for (i=26-8;i<26+8;i++) {
+    total += confidence[i];
+  }
+  carpet_land_colliding = total / 16;
 
   // Draw confidence line
   i = 0;
