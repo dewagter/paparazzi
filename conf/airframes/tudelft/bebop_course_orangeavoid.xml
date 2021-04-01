@@ -25,12 +25,12 @@
   <!-- Subsystem section -->
     <module name="telemetry" type="transparent_udp"/>
     <module name="radio_control" type="datalink"/>
-    <module name="motor_mixing"/>
     <module name="actuators" type="bebop"/>
     <module name="imu" type="bebop"/>
     <module name="gps" type="datalink"/>
-    <module name="stabilization" type="indi_simple"/>
-    <module name="stabilization" type="rate_indi"/>
+    <module name="stabilization" type="indi" />
+<!--      <define name="INDI_RPM_FEEDBACK" value="TRUE"/>
+    </module-->
     <module name="ahrs" type="int_cmpl_quat">
       <configure name="USE_MAGNETOMETER" value="FALSE"/>
       <define name="AHRS_USE_GPS_HEADING" value="TRUE"/>
@@ -78,25 +78,17 @@
   </commands>
 
   <servos driver="Default">
-    <servo name="TOP_LEFT" no="0" min="3000" neutral="3000" max="9800" />
-    <servo name="TOP_RIGHT" no="1" min="3000" neutral="3000" max="9800" />
-    <servo name="BOTTOM_RIGHT" no="2" min="3000" neutral="3000" max="9800" />
-    <servo name="BOTTOM_LEFT" no="3" min="3000" neutral="3000" max="9800" />
+    <servo name="TOP_LEFT" no="0" min="1000" neutral="1000" max="9800"/>
+    <servo name="TOP_RIGHT" no="1" min="1000" neutral="1000" max="9800"/>
+    <servo name="BOTTOM_RIGHT" no="2" min="1000" neutral="1000" max="9800"/>
+    <servo name="BOTTOM_LEFT" no="3" min="1000" neutral="1000" max="9800"/>
   </servos>
 
-  <section name="MIXING" prefix="MOTOR_MIXING_">
-    <define name="TRIM_ROLL" value="0"/>
-    <define name="TRIM_PITCH" value="0"/>
-    <define name="TRIM_YAW" value="0"/>
-    <define name="TYPE" value="QUAD_X"/>
-  </section>
-
   <command_laws>
-    <call fun="motor_mixing_run(autopilot_get_motors_on(),FALSE,values)"/>
-    <set servo="TOP_LEFT" value="motor_mixing.commands[MOTOR_FRONT_LEFT]"/>
-    <set servo="TOP_RIGHT" value="motor_mixing.commands[MOTOR_FRONT_RIGHT]"/>
-    <set servo="BOTTOM_RIGHT" value="motor_mixing.commands[MOTOR_BACK_RIGHT]"/>
-    <set servo="BOTTOM_LEFT" value="motor_mixing.commands[MOTOR_BACK_LEFT]"/>
+    <set servo="TOP_LEFT"     value="autopilot_get_motors_on() ? actuators_pprz[0] : -MAX_PPRZ"/>
+    <set servo="TOP_RIGHT"    value="autopilot_get_motors_on() ? actuators_pprz[1] : -MAX_PPRZ"/>
+    <set servo="BOTTOM_RIGHT" value="autopilot_get_motors_on() ? actuators_pprz[2] : -MAX_PPRZ"/>
+    <set servo="BOTTOM_LEFT"  value="autopilot_get_motors_on() ? actuators_pprz[3] : -MAX_PPRZ"/>
   </command_laws>
 
   <section name="BEBOP_FRONT_CAMERA" prefix="MT9F002_">
@@ -173,40 +165,46 @@
 
     <define name="REF_OMEGA_R" value="200" unit="deg/s"/>
     <define name="REF_ZETA_R" value="0.9"/>
-    <define name="REF_MAX_R" value="300." unit="deg/s"/>
-    <define name="REF_MAX_RDOT" value="RadOfDeg(4000.)"/>
+    <define name="REF_MAX_R" value="200." unit="deg/s"/>
+    <define name="REF_MAX_RDOT" value="RadOfDeg(1000.)"/>
   </section>
 
   <section name="STABILIZATION_ATTITUDE_INDI" prefix="STABILIZATION_INDI_">
-    <!-- control effectiveness -->
-    <define name="G1_P" value="0.0397"/>
-    <define name="G1_Q" value="0.0299"/>
-    <define name="G1_R" value="0.0014"/>
-    <define name="G2_R" value="0.1219"/>
+
+    <!-- Control effectiveness from bebop_optitrack.xml 
+    <define name="G1_ROLL" value="{11.0, -11.0, -11.0 , 11.0 }"/>
+    <define name="G1_PITCH" value="{8.5 , 8.5, -8.5 , -8.5}"/>
+    <define name="G1_YAW" value="{-0.50, 0.50, -0.50, 0.50}"/>
+    <define name="G1_THRUST" value="{-.40, -.40, -.40, -.40}"/>
+    <define name="G2" value="{-48.0,   48.0,  -48.0,   48.0}"/ -->
+
+    <!-- control effectiveness from bebop_indi_actuators -->
+    <define name="G1_ROLL" value="{20 , -20, -20 , 20 }"/>
+    <define name="G1_PITCH" value="{14 , 14, -14 , -14 }"/>
+    <define name="G1_YAW" value="{-1, 1, -1, 1}"/>
+    <define name="G1_THRUST" value="{-.4, -.4, -.4, -.4}"/>
+    <define name="G2" value="{-61.2093,   65.3670,  -65.7419,   65.4516}"/>
 
     <!-- reference acceleration for attitude control -->
     <define name="REF_ERR_P" value="600.0"/>
     <define name="REF_ERR_Q" value="600.0"/>
-    <define name="REF_ERR_R" value="600.0"/>
+    <define name="REF_ERR_R" value="200.0"/>
     <define name="REF_RATE_P" value="28.0"/>
     <define name="REF_RATE_Q" value="28.0"/>
-    <define name="REF_RATE_R" value="28.0"/>
+    <define name="REF_RATE_R" value="9.0"/>
 
-    <!--Maxium yaw rate, to avoid instability-->
-    <define name="MAX_R" value="100.0" unit="deg/s"/>
-
-    <!-- second order filter parameters -->
-    <define name="FILT_CUTOFF" value="8.0"/>
-    <define name="ESTIMATION_FILT_CUTOFF" value="8.0"/>
+    <define name="ESTIMATION_FILT_CUTOFF" value="4.0"/>
+    <define name="FILT_CUTOFF" value="5.0"/>
 
     <!-- first order actuator dynamics -->
-    <define name="ACT_DYN_P" value="0.1"/>
-    <define name="ACT_DYN_Q" value="0.1"/>
-    <define name="ACT_DYN_R" value="0.1"/>
+    <define name="ACT_DYN" value="{0.1, 0.1, 0.1, 0.1}"/>
 
     <!-- Adaptive Learning Rate -->
     <define name="USE_ADAPTIVE" value="FALSE"/>
-    <define name="ADAPTIVE_MU" value="0.0001"/>
+    <define name="ADAPTIVE_MU" value="0.00001"/>
+
+    <!--Priority for each axis (roll, pitch, yaw and thrust)-->
+    <define name="WLS_PRIORITIES" value="{1000, 1000, 1, 100}"/>
   </section>
 
   <section name="GUIDANCE_V" prefix="GUIDANCE_V_">
@@ -248,7 +246,7 @@
 
   <section name="AUTOPILOT">
     <define name="MODE_STARTUP" value="AP_MODE_NAV"/>
-    <define name="MODE_MANUAL" value="AP_MODE_MODULE"/>
+    <define name="MODE_MANUAL" value="AP_MODE_ATTITUDE_DIRECT"/>
     <define name="MODE_AUTO1" value="AP_MODE_ATTITUDE_Z_HOLD"/>
     <define name="MODE_AUTO2" value="AP_MODE_NAV"/>
 
