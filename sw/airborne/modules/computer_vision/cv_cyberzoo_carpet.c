@@ -419,10 +419,10 @@ float find_carpet(struct image_t *img, bool draw)
   }
 
   int16_t total = 0;
-  for (i=26-16;i<26+16;i++) {
+  for (i=26-18;i<26+18;i++) {
     total += confidence[i];
   }
-  carpet_land_colliding = ((float)total) / 32.0f;
+  carpet_land_colliding = ((float)total) / 36.0f;
 
   // Draw confidence line
   i = 0;

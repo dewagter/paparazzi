@@ -120,7 +120,7 @@ void guidance_h_module_run(bool in_flight)
 
   float danger = carpet_land_colliding;
 
-  if (danger < 5) {
+  if (danger < 7) {
     certainty = 10;    
   }
 
@@ -145,7 +145,7 @@ void guidance_h_module_run(bool in_flight)
   }
   float speedy = 0; //speedx * carpet_land_direction / 1.5;
 
-  if (danger < 5) {
+  if (danger < 6) {
     certainty = 10;    
     speedx = -0.05;
   }
