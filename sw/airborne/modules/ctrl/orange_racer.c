@@ -120,7 +120,7 @@ void guidance_h_module_run(bool in_flight)
 
   float danger = carpet_land_colliding;
 
-  if (danger < 7) {
+  if (danger < 9) {
     certainty = 10;    
   }
 
@@ -145,7 +145,7 @@ void guidance_h_module_run(bool in_flight)
   }
   float speedy = 0; //speedx * carpet_land_direction / 1.5;
 
-  if (danger < 6) {
+  if (danger < 9) {
     certainty = 10;    
     speedx = -0.05;
   }
@@ -199,8 +199,8 @@ void guidance_h_module_run(bool in_flight)
 
   // DEFINE RACE
 
-  filtx += (speedx - filtx) / 60;
-  filty += (speedy - filty) / 60;
+  filtx += (speedx - filtx) / 30;
+  filty += (speedy - filty) / 30;
 
   vx_s_b = filtx;
   vy_s_b = filty;
@@ -228,8 +228,8 @@ void guidance_h_module_run(bool in_flight)
   static float integraly = 0;
 
 #define V_K_FF 0.00
-#define V_K_P  0.3
-#define V_K_D  0.05
+#define V_K_P  0.32
+#define V_K_D  0.06
 #define V_K_I  0.0001
 
   integralx += dvx * V_K_I;
