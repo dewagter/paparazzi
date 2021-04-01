@@ -109,6 +109,8 @@ void guidance_h_module_run(bool in_flight)
   float bearing = atan2(x->y, x->x);
   float dhead = bearing - psi;
 
+  float yaw_gain = 0.5;
+
   if (dhead < 0) dhead = -dhead;
   dhead = DegOfRad(dhead);
  
@@ -134,12 +136,12 @@ void guidance_h_module_run(bool in_flight)
   float speedx = 1.0; // certainty / 500.0 * 0.5;
   if (certainty <  50) {
     speedx = 0.5;
-    ctrl.heading += 0.002;
+    ctrl.heading += 0.002 * yaw_gain;
   } else  if (certainty <  100) {
     speedx = 0.75;
-    ctrl.heading += (0.004 + carpet_land_direction * 0.0008) * multiplier;
+    ctrl.heading += (0.004 + carpet_land_direction * 0.0008) * multiplier * yaw_gain;
   } else {
-    ctrl.heading += (carpet_land_direction * 0.0025) * multiplier;
+    ctrl.heading += (carpet_land_direction * 0.0025) * multiplier * yaw_gain;
   }
   float speedy = 0; //speedx * carpet_land_direction / 1.5;
 
@@ -150,16 +152,18 @@ void guidance_h_module_run(bool in_flight)
   //fprintf(stdout,"[orange_racer]  v_s = %f, %f psi = %f\n",  speedx, speedy, ctrl.heading);
 
 
-  //ctrl.time += 0.002;
+  // GO
+
+  ctrl.time += 0.002 * multiplier;
   //accelerator -= 0.00002;
   //if (accelerator < 0.1) accelerator = 0.1;
 
   // Flightplan
-  float heading = 0; //ctrl.time / accelerator;
+  float heading = ctrl.time;
   heading = ctrl.heading;
 
-  float radius = 5.0;
-  float vff = radius / 3;
+  float radius = 2.5;
+  float vff = radius / 5;
 
   float x_s = sin(heading) * radius;
   float y_s = -cos(heading) * radius;
@@ -179,10 +183,15 @@ void guidance_h_module_run(bool in_flight)
 
 
   // Position Loop (Body)
-  #define X_K_P 0.5
+  #define X_K_P 0.4
   float vx_s_b = ( dx_b ) * X_K_P + vff;
   float vy_s_b = ( dy_b ) * X_K_P;
 
+
+  //speedx=0;
+  //speedy=0;
+
+  // DEFINE RACE
 
   filtx += (speedx - filtx) / 40;
   filty += (speedy - filty) / 40;
@@ -200,21 +209,37 @@ void guidance_h_module_run(bool in_flight)
   float dvx = vx_s_b - vx_b;
   float dvy = vy_s_b - vy_b;
 
+  BoundAbs(dvx,2);
+  BoundAbs(dvy,2);
+
   // 	// Coordinated turn
 	// new_roll += -atan(vel_x_est_velFrame / 9.81 * this->yaw_rate_cmd);
 
+  static float lastdvx = 0;
+  static float lastdvy = 0;
 
-#define V_K_FF 0.02
-#define V_K_P  0.9
+  static float integralx = 0;
+  static float integraly = 0;
 
-  float roll = dvy * V_K_P + V_K_FF * vy_s_b;
-  float pitch = - dvx * V_K_P - V_K_FF * vx_s_b;
+#define V_K_FF 0.00
+#define V_K_P  0.3
+#define V_K_D  0.03
+#define V_K_I  0.0001
+
+  integralx += dvx * V_K_I;
+  integraly += dvy * V_K_I;
+
+  float roll = dvy * V_K_P + V_K_FF * vy_s_b + V_K_D * (lastdvy - dvy) + integraly;
+  float pitch = - dvx * V_K_P - V_K_FF * vx_s_b - V_K_D * (lastdvx - dvx) - integralx;
+
+  lastdvx = dvx;
+  lastdvy = dvy;
 
   //fprintf(stderr, "Vtot=(%f), psi = %f, dv=(%f,%f)\n", vtot, psi, dvx, dvy  );
 
 
-  BoundAbs(roll,RadOfDeg(32));
-  BoundAbs(pitch,RadOfDeg(32));
+  BoundAbs(roll,RadOfDeg(20));
+  BoundAbs(pitch,RadOfDeg(20));
 
   ctrl.cmd.phi = ANGLE_BFP_OF_REAL(roll);
   ctrl.cmd.theta = ANGLE_BFP_OF_REAL(pitch);
