@@ -104,6 +104,7 @@ void guidance_h_module_run(bool in_flight)
 
   float multiplier = race_multiplier;
 
+
   float dist_center = sqrt(x->x*x->x + x->y*x->y);
   float bearing = atan2(x->y, x->x);
   float dhead = bearing - psi;
@@ -114,6 +115,14 @@ void guidance_h_module_run(bool in_flight)
   fprintf(stdout,"[orange_racer] d=%f  bear = %f psi = %f   dg=%f \n",  dist_center, bearing, psi, dhead);
 
  float certainty = carpet_land_certainty;
+
+  float danger = carpet_land_colliding;
+
+  if (danger < 5) {
+    certainty = 10;    
+  }
+
+
   if (dist_center > 3.7) {
     if (dhead < 110)
       certainty = 39;
