@@ -33,6 +33,10 @@
 extern float race_multiplier;
 extern float race_radius;
 
+// Gains
+extern float orange_racer_K_V_P;
+
+
 // Demo with own guidance_h
 #define GUIDANCE_H_MODE_MODULE_SETTING GUIDANCE_H_MODE_MODULE
 

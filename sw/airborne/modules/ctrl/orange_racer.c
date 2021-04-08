@@ -45,6 +45,11 @@ struct ctrl_module_demo_struct {
 
   float heading;
 
+
+  float integralx;
+  float integraly;
+
+
   // Output command
   struct Int32Eulers cmd;
 
@@ -71,6 +76,11 @@ void guidance_h_module_enter(void)
   // Store current heading
   ctrl.heading = stateGetNedToBodyEulers_f()->psi;
 
+  ctrl.integralx = 0;
+  ctrl.integraly = 0;
+
+  ctrl.time = 0;
+
   // Convert RC to setpoint
   //stabilization_attitude_read_rc_setpoint_eulers(&ctrl.rc_sp, autopilot.in_flight, false, false);
 }
@@ -82,6 +92,8 @@ void guidance_h_module_read_rc(void)
 
 float race_multiplier = 0.25;
 float race_radius = 3;
+
+float orange_racer_K_V_P = 0.3;
 
 
 void guidance_h_module_run(bool in_flight)
@@ -97,8 +109,6 @@ void guidance_h_module_run(bool in_flight)
 
 
   //static float accelerator = 1.0;
-  static float filtx = 0;
-  static float filty = 0;
   //fprintf(stdout,"[orange_racer] RUN: dir = %f cert  =%f\n",  carpet_land_direction, carpet_land_certainty);
   // YOUR NEW HORIZONTAL OUTERLOOP CONTROLLER GOES HERE
   // ctrl.cmd = CallMyNewHorizontalOuterloopControl(ctrl);
@@ -107,6 +117,12 @@ void guidance_h_module_run(bool in_flight)
 
 
   float dist_center = sqrt(x->x*x->x + x->y*x->y);
+
+  /*
+
+  static float filtx = 0;
+  static float filty = 0;
+
   float bearing = atan2(x->y, x->x);
   float dhead = bearing - psi;
 
@@ -117,7 +133,7 @@ void guidance_h_module_run(bool in_flight)
  
   fprintf(stdout,"[orange_racer] d=%f  bear = %f psi = %f   dg=%f \n",  dist_center, bearing, psi, dhead);
 
- float certainty = carpet_land_certainty;
+  float certainty = carpet_land_certainty;
 
   float danger = carpet_land_colliding;
 
@@ -125,6 +141,7 @@ void guidance_h_module_run(bool in_flight)
     certainty = 10;    
   }
 
+  //float yawrate = 
 
   if (dist_center > 3.7) {
     if (dhead < 110)
@@ -137,12 +154,12 @@ void guidance_h_module_run(bool in_flight)
   float speedx = 1.0; // certainty / 500.0 * 0.5;
   if (certainty <  50) {
     speedx = 0.5;
-    ctrl.heading += 0.002 * yaw_gain;
+    //ctrl.heading += 0.002 * yaw_gain;
   } else  if (certainty <  100) {
     speedx = 0.75;
-    ctrl.heading += (0.004 + carpet_land_direction * 0.0008) * multiplier * yaw_gain;
+    //ctrl.heading += (0.004 + carpet_land_direction * 0.0008) * multiplier * yaw_gain;
   } else {
-    ctrl.heading += (carpet_land_direction * 0.0025) * multiplier * yaw_gain;
+    //ctrl.heading += (carpet_land_direction * 0.0025) * multiplier * yaw_gain;
   }
   float speedy = 0; //speedx * carpet_land_direction / 1.5;
 
@@ -151,27 +168,31 @@ void guidance_h_module_run(bool in_flight)
     speedx = -0.05;
   }
 
-
   speedx *= multiplier;
+
+
+  filtx += (speedx - filtx) / 30;
+  filty += (speedy - filty) / 30;
 
 
 
   //fprintf(stdout,"[orange_racer]  v_s = %f, %f psi = %f\n",  speedx, speedy, ctrl.heading);
-
+*/
 
   // GO
 
-  ctrl.time += 0.002 * multiplier;
+  //ctrl.time += 0.002 * multiplier;
   //accelerator -= 0.00002;
   //if (accelerator < 0.1) accelerator = 0.1;
 
   // Flightplan
-  float heading = ctrl.time;
-  //heading = ctrl.heading;
+  float heading = ctrl.heading;
 
   float radius = race_radius;
   float vff = 0;//radius / 5;
 
+
+  // Position setpoint
   float x_s = sin(heading) * radius;
   float y_s = -cos(heading) * radius;
 
@@ -185,72 +206,75 @@ void guidance_h_module_run(bool in_flight)
   float dy = y_s - x->y;
 
   // Body frame
-	double dx_b =  cos(psi)*dx + sin(psi)*dy;
-	double dy_b = -sin(psi)*dx + cos(psi)*dy;
-
-
+	float dx_b =  cos(psi)*dx + sin(psi)*dy;
+	float dy_b = -sin(psi)*dx + cos(psi)*dy;
+  
   // Position Loop (Body)
   #define X_K_P 0.4
   float vx_s_b = ( dx_b ) * X_K_P + vff;
   float vy_s_b = ( dy_b ) * X_K_P;
 
-
-  //speedx=0;
-  //speedy=0;
-
-  // DEFINE RACE
-
-  filtx += (speedx - filtx) / 30;
-  filty += (speedy - filty) / 30;
-
   //vx_s_b = filtx;
   //vy_s_b = filty;
 
-  // Global velociy
-	double vx_b =  cos(psi) * v->x + sin(psi) * v->y;
-	double vy_b = -sin(psi) * v->x + cos(psi) * v->y;
 
-  double vtot = sqrt(vx_b*vx_b + vy_b*vy_b);
+  float vtot = sqrt(v->x*v->x + v->y*v->y);
+
+  float yawrate = 6.28 / vtot;
+
+  float d_g = (dist_center - radius) / 2 + 1;
+
+  yawrate *= d_g;
+
+
+  ctrl.heading += yawrate / 512.0f;
+
+  // Global velociy
+	//float vx_b =  cos(psi) * v->x + sin(psi) * v->y;
+	//float vy_b = -sin(psi) * v->x + cos(psi) * v->y;
+
 
   // Speed loop
-  float dvx = vx_s_b - vx_b;
-  float dvy = vy_s_b - vy_b;
+  //float dvx = vx_s_b - vx_b;
+  //float dvy = vy_s_b - vy_b;
 
-  BoundAbs(dvx,2);
-  BoundAbs(dvy,2);
+  //BoundAbs(dvx,5);
+  //BoundAbs(dvy,5);
 
   // 	// Coordinated turn
-	// new_roll += -atan(vel_x_est_velFrame / 9.81 * this->yaw_rate_cmd);
+	float new_roll = -atan(vtot / 9.81 * yawrate);
 
   static float lastdvx = 0;
   static float lastdvy = 0;
 
-  static float integralx = 0;
-  static float integraly = 0;
 
-#define V_K_FF 0.00
-#define V_K_P  0.32
-#define V_K_D  0.06
-#define V_K_I  0.0001
+  #define V_K_FF 0.00
+  //#define V_K_P  0.3
+  #define V_K_D  0.0
+  #define V_K_I  0.0
 
-  integralx += dvx * V_K_I;
-  integraly += dvy * V_K_I;
+  //ctrl.integralx += dvx * V_K_I;
+  //ctrl.integraly += dvy * V_K_I;
 
-  float roll = dvy * V_K_P + V_K_FF * vy_s_b + V_K_D * (lastdvy - dvy) + integraly;
-  float pitch = - dvx * V_K_P - V_K_FF * vx_s_b - V_K_D * (lastdvx - dvx) - integralx;
+  float roll = new_roll; //dvy * orange_racer_K_V_P    + V_K_FF * vy_s_b + V_K_D * (lastdvy - dvy) + ctrl.integraly + new_roll;
+  float pitch = - multiplier; //- dvx * orange_racer_K_V_P - V_K_FF * vx_s_b - V_K_D * (lastdvx - dvx) - ctrl.integralx;
 
-  lastdvx = dvx;
-  lastdvy = dvy;
+  //lastdvx = dvx;
+  //lastdvy = dvy;
 
   //fprintf(stderr, "Vtot=(%f), psi = %f, dv=(%f,%f)\n", vtot, psi, dvx, dvy  );
 
 
-  BoundAbs(roll,RadOfDeg(20));
-  BoundAbs(pitch,RadOfDeg(20));
+  BoundAbs(roll, RadOfDeg(35));
+  BoundAbs(pitch,RadOfDeg(35));
+
+  //static heading_s = 0;
+  float track = atan2(v->y,v->x);
+
 
   ctrl.cmd.phi = ANGLE_BFP_OF_REAL(roll);
   ctrl.cmd.theta = ANGLE_BFP_OF_REAL(pitch);
-  ctrl.cmd.psi = ANGLE_BFP_OF_REAL(heading);
+  ctrl.cmd.psi = ANGLE_BFP_OF_REAL(track);
 
   stabilization_attitude_set_rpy_setpoint_i(&(ctrl.cmd));
   stabilization_attitude_run(in_flight);
